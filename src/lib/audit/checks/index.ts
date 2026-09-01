@@ -8,10 +8,12 @@ import { agentDiscoveryCheck } from "./agent-discovery";
 import { machineReadableStructureCheck } from "./machine-readable-structure";
 import { accessRenderabilityCheck } from "./access-renderability";
 import { formSemanticsCheck } from "./form-semantics";
+import { actionabilityCheck } from "./actionability";
 
 export const CHECKS: readonly AuditCheck[] = [
   agentDiscoveryCheck,
   machineReadableStructureCheck,
   accessRenderabilityCheck,
   formSemanticsCheck,
+  actionabilityCheck,
 ];
