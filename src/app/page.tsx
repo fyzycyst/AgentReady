@@ -87,7 +87,8 @@ export default function Home() {
           </p>
 
           <div className="mt-10 rise" style={{ animationDelay: "180ms" }}>
-            <UrlAuditForm />
+            {/* Only here: `/` is the page that owns the audit_site tool. */}
+            <UrlAuditForm declareTool />
             <div className="mt-4">
               <SafeUrlChips />
             </div>

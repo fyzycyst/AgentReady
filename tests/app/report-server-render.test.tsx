@@ -102,6 +102,18 @@ describe("GET /report?url= — the no-JavaScript path", () => {
     expect(markup).not.toContain(LOADING_SHELL);
   });
 
+  it("does not declare audit_site — this page's subject is somebody else's site", async () => {
+    runAudit.mockResolvedValue(okReport());
+    const markup = await render({ url: "example.com" });
+    // Assert on real <form> tags, not on the string: a report legitimately
+    // contains escaped `&lt;form … toolname=…` inside remediation snippets.
+    const formTags = [...markup.matchAll(/<form[^>]*>/g)].map(([tag]) => tag);
+    expect(formTags).toHaveLength(1);
+    expect(formTags[0]).not.toContain("toolname");
+    expect(formTags[0]).not.toContain("tooldescription");
+    expect(formTags[0]).toContain('action="/report"');
+  });
+
   it("degrades the 'already working' lists to native details/summary", async () => {
     runAudit.mockResolvedValue(okReport());
     const markup = await render({ url: "example.com" });

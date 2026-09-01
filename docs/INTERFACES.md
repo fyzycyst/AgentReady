@@ -43,6 +43,11 @@ on the fallback. The audit blocks the response instead.
 server-side result; when `initial` is supplied it never fetches. `POST /api/audit`
 is unchanged and remains the programmatic entry point.
 
+**Every `<Link>` to `/report` must pass `prefetch={false}`.** Rendering the route
+runs an audit, so a prefetch would fetch and score a third-party site from an
+idle page — outbound requests and rate-limiter budget with nobody having clicked.
+Enforced by `tests/components/report-link-policy.test.tsx`.
+
 ## HTTP: `GET /openapi.json`
 
 OpenAPI 3.1 description of `POST|GET /api/audit` and `GET /api/card`, served as
@@ -59,7 +64,10 @@ be made there in the same PR.
 
 - **Declaratively** — `toolname` / `tooldescription` on the audit form, with
   `toolparamdescription` on the `url` input. The form is a real
-  `GET /report?url=…`, so it works with JavaScript off.
+  `GET /report?url=…`, so it works with JavaScript off. `UrlAuditForm` emits
+  these attributes only when passed `declareTool`, which **only `/` does**: the
+  same form is rendered in the `/report` header, where the page's subject is
+  somebody else's site.
 - **Imperatively** — `AUDIT_SITE_TOOL_SCRIPT` (`audit-site-tool-script.ts`),
   emitted as an *inline* `<script>` by
   `src/components/landing/webmcp-audit-tool.tsx`. Inline is required, not

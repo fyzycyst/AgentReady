@@ -6,10 +6,14 @@
  *
  * Relative paths (`/demo`, `/fixtures/soup`) are resolved at click time against
  * `window.location.origin` in SafeUrlChips.
+ *
+ * Labels describe what a page is, never what it scores: a grade is produced by
+ * the rubric, and the rubric changes. The chip runs the audit — that is where
+ * the number comes from.
  */
 export const SAFE_URLS: readonly { label: string; url: string }[] = [
-  { label: "Our demo (A)", url: "/demo" },
-  { label: "Beautiful but broken (D)", url: "/fixtures/soup" },
+  { label: "Our demo", url: "/demo" },
+  { label: "Beautiful but broken", url: "/fixtures/soup" },
   { label: "example.com", url: "https://example.com/" },
   { label: "MDN", url: "https://developer.mozilla.org/en-US/" },
   { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Web_browser" },

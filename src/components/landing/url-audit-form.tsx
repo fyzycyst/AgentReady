@@ -14,8 +14,22 @@ import type { WebMcpControlProps, WebMcpFormProps } from "@/types/webmcp";
  *
  * The tool name and description are shared with the imperative `audit_site`
  * registration in `@/lib/webmcp/audit-site-tool` — one action, one name.
+ *
+ * `declareTool` defaults to **false** and only `/` passes it. This same form is
+ * rendered in the `/report` header, and a tool is scoped to the page that
+ * declares it: leaving the attributes on would expose `audit_site` on a page
+ * whose subject is somebody else's site, which is exactly the leak the
+ * imperative registration's mount/unmount lifecycle exists to prevent.
  */
-export function UrlAuditForm({ initial = "", compact = false }: { initial?: string; compact?: boolean }) {
+export function UrlAuditForm({
+  initial = "",
+  compact = false,
+  declareTool = false,
+}: {
+  initial?: string;
+  compact?: boolean;
+  declareTool?: boolean;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +61,12 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
       // Scheme-less input ("yourcompany.com") is normalised server-side, so the
       // browser must not reject it against type="url" before we get there.
       noValidate
-      {...({
-        toolname: AUDIT_SITE_TOOL.name,
-        tooldescription: AUDIT_SITE_TOOL.description,
-      } satisfies WebMcpFormProps)}
+      {...(declareTool
+        ? ({
+            toolname: AUDIT_SITE_TOOL.name,
+            tooldescription: AUDIT_SITE_TOOL.description,
+          } satisfies WebMcpFormProps)
+        : {})}
     >
       <div
         className={`flex items-stretch rounded-xl border border-line-strong bg-bg-elev shadow-[0_0_0_1px_rgba(242,179,61,0.0)] focus-within:shadow-[0_0_0_3px_rgba(242,179,61,0.18)] focus-within:border-signal transition-shadow ${
@@ -70,9 +86,11 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
           spellCheck={false}
           required
           placeholder="yourcompany.com"
-          {...({
-            toolparamdescription: AUDIT_SITE_TOOL.inputSchema.properties.url.description,
-          } satisfies WebMcpControlProps)}
+          {...(declareTool
+            ? ({
+                toolparamdescription: AUDIT_SITE_TOOL.inputSchema.properties.url.description,
+              } satisfies WebMcpControlProps)
+            : {})}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className={`flex-1 min-w-0 bg-transparent px-3 sm:px-2 font-mono text-text placeholder:text-faint outline-none ${compact ? "py-2.5 text-sm" : "py-4"}`}
