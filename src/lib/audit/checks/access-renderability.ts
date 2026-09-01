@@ -101,6 +101,11 @@ function scoreBotManagement(
     title: "Bot management in front of this page",
     detail: "Bot management in front of this page; agents may be challenged on other requests.",
     evidence: hits.map((h) => ({ source: "response-header" as const, summary: h })),
+    remediation: {
+      summary: "Allow-list well-behaved agents in your bot-management rules.",
+      rationale:
+        "User-driven agents fetch on behalf of a person; blanket bot challenges can block legitimate agent traffic even when the page itself returned 200.",
+    },
   });
   return { points: 0, present: true };
 }
@@ -161,11 +166,12 @@ function scoreCaptcha(dom: AuditContext["page"]["raw"]["dom"], findings: Finding
         excerpt: excerpt(m.outerHtml(), 120),
       })),
       remediation: {
-        summary: "Use invisible/managed Turnstile or move the challenge after the agent step.",
-        rationale: "Agents cannot solve interactive CAPTCHAs; keep the HTML form submittable or defer verification.",
+        summary: "Agents cannot pass CAPTCHAs.",
+        rationale:
+          "Move the challenge behind a risk signal (rate, reputation) or to a later step, and offer an authenticated/API path for agents.",
+        language: "text",
         snippet:
-          '<!-- Cloudflare Turnstile managed mode -->\n<div class="cf-turnstile" data-sitekey="..." data-size="invisible"></div>',
-        language: "html",
+          "Agents cannot pass CAPTCHAs. Move the challenge behind a risk signal (rate, reputation) or to a later step, and offer an authenticated/API path for agents.",
       },
     });
     return 0;
@@ -181,6 +187,10 @@ function scoreCaptcha(dom: AuditContext["page"]["raw"]["dom"], findings: Finding
       summary: m.path || m.tag,
       excerpt: excerpt(m.outerHtml(), 120),
     })),
+    remediation: {
+      summary: "Keep challenges off content pages; challenge only on abuse signals.",
+      rationale: "CAPTCHA widgets on informational pages add friction without protecting a specific action.",
+    },
   });
   return 10;
 }
@@ -240,6 +250,10 @@ function scoreJsDependence(
       title: "Page may depend on JavaScript",
       detail: JS_HEURISTIC_DETAIL,
       evidence: [{ source: "raw-html", summary: "1 JS-dependence heuristic fired" }],
+      remediation: {
+        summary: "Confirm the primary content is present in the HTML response (curl it) — if not, pre-render this route.",
+        rationale: "A single heuristic is a weak signal; verify what agents actually receive before changing architecture.",
+      },
     });
     return { points: 25, count: 1 };
   }
@@ -252,11 +266,11 @@ function scoreJsDependence(
       detail: JS_HEURISTIC_DETAIL + JS_CAP_DETAIL.likely,
       evidence: [{ source: "raw-html", summary: "2 JS-dependence heuristics fired" }],
       remediation: {
-        summary: "Pre-render primary content in HTML for agent and no-JS clients.",
+        summary: "Server-render the primary content so the first HTML response contains it.",
         rationale: "Agents fetch raw HTML; SPAs that mount into empty divs hide their content.",
+        language: "text",
         snippet:
-          '<!-- Next.js: prefer server components / static rendering -->\nexport const dynamic = "force-static";',
-        language: "ts",
+          "Server-render the primary content: in Next.js use Server Components / generateStaticParams; in a client-only SPA add pre-rendering (e.g. prerender step or SSR) so the first HTML response contains the content.",
       },
     });
     return { points: 12, count: 2 };
@@ -269,11 +283,11 @@ function scoreJsDependence(
     detail: JS_HEURISTIC_DETAIL + JS_CAP_DETAIL.required,
     evidence: [{ source: "raw-html", summary: `${count} JS-dependence heuristics fired` }],
     remediation: {
-      summary: "Emit primary content in HTML or pre-render this route.",
+      summary: "Server-render the primary content so the first HTML response contains it.",
       rationale: "Multiple empty-shell signals mean agents see little or no usable text.",
+      language: "text",
       snippet:
-        '<!-- Generic SPA: server-render the route or hydrate from inline JSON -->\n<main><h1>Page title</h1><p>Primary content belongs here in HTML.</p></main>',
-      language: "html",
+        "Server-render the primary content: in Next.js use Server Components / generateStaticParams; in a client-only SPA add pre-rendering (e.g. prerender step or SSR) so the first HTML response contains the content.",
     },
   });
   return { points: 0, count };
