@@ -61,19 +61,62 @@ function attrValue(el: ElementView, name: string): string {
   return el.attr(name)?.trim() ?? "";
 }
 
+/**
+ * Tool-name shape from webmcp-facts §1/§2: 1–128 chars, `[A-Za-z0-9_.-]`.
+ * The spec states it for imperative registration and the facts note that
+ * declarative names should follow the same shape for agents.
+ */
+const TOOL_NAME_SHAPE = /^[A-Za-z0-9_.-]{1,128}$/;
+
+interface DeclaredForm {
+  readonly form: ElementView;
+  /** Empty when the declaration is complete and usable. */
+  readonly defects: readonly string[];
+}
+
 interface DeclarativeForms {
   readonly valid: readonly ElementView[];
-  readonly incomplete: readonly ElementView[];
+  readonly incomplete: readonly DeclaredForm[];
+}
+
+/**
+ * A declaration only earns the strong signal if Chrome could actually expose
+ * it (review W5): both attributes present, a tool name of the specified shape,
+ * and a name on every required control — a required control with no name has
+ * no schema property key, which is exactly what Chrome's own
+ * webmcp-schema-validity audit fails on.
+ */
+function declarativeDefects(form: ElementView): string[] {
+  const name = attrValue(form, "toolname");
+  const description = attrValue(form, "tooldescription");
+  const defects: string[] = [];
+
+  if (!name) defects.push("toolname is missing");
+  else if (!TOOL_NAME_SHAPE.test(name)) {
+    defects.push("toolname is not a valid tool name (1–128 chars, letters, digits, _ . -)");
+  }
+  if (!description) defects.push("tooldescription is missing");
+
+  const unnamedRequired = toolParamControls(form).filter(
+    (c) => c.attr("required") !== undefined && !attrValue(c, "name"),
+  );
+  if (unnamedRequired.length > 0) {
+    defects.push(
+      `${unnamedRequired.length} required control${unnamedRequired.length > 1 ? "s have" : " has"} no name attribute, so ${unnamedRequired.length > 1 ? "they get" : "it gets"} no schema property`,
+    );
+  }
+  return defects;
 }
 
 function declarativeForms(dom: HtmlQuery): DeclarativeForms {
   const valid: ElementView[] = [];
-  const incomplete: ElementView[] = [];
+  const incomplete: DeclaredForm[] = [];
   for (const form of dom.all("form")) {
-    const name = attrValue(form, "toolname");
-    const description = attrValue(form, "tooldescription");
-    if (name && description) valid.push(form);
-    else if (name || description) incomplete.push(form);
+    // A form with neither attribute is not attempting to declare a tool.
+    if (!attrValue(form, "toolname") && !attrValue(form, "tooldescription")) continue;
+    const defects = declarativeDefects(form);
+    if (defects.length === 0) valid.push(form);
+    else incomplete.push({ form, defects });
   }
   return { valid, incomplete };
 }
@@ -130,8 +173,9 @@ export const webmcpCapabilityCheck: AuditCheck = {
     const policyDisabled = toolsDisabledByPolicy(headers);
     const originClusterOff = (headers["origin-agent-cluster"] ?? "").trim() === "?0";
 
-    // ---- Declarative (60 + 10)
-    let declarativePoints = 0;
+    // ---- Declarative: 60 (+10) for a declaration Chrome can expose, 20 for
+    // one that is attempted but broken (W5).
+    let declarativePoints = incomplete.length > 0 ? 20 : 0;
     const describedControls: ElementView[] = [];
     const undescribedControls: ElementView[] = [];
     if (valid.length > 0) {
@@ -185,20 +229,30 @@ export const webmcpCapabilityCheck: AuditCheck = {
 
     if (incomplete.length > 0) {
       const sample = incomplete[0];
+      // A required control with no name is the one defect a corrected <form>
+      // tag cannot express, so the snippet gains that control's fixed line.
+      const unnamedRequired = toolParamControls(sample.form).find(
+        (c) => c.attr("required") !== undefined && !attrValue(c, "name"),
+      );
+      const snippet = unnamedRequired
+        ? `${correctedFormTag(dom, sample.form)}\n  ${controlSnippetLine(dom, unnamedRequired)}`
+        : correctedFormTag(dom, sample.form);
+
       findings.push({
         id: "webmcp.declarative.incomplete",
         severity: "medium",
-        title: "Incomplete WebMCP form declaration",
-        detail: `${incomplete.length} form${incomplete.length > 1 ? "s declare" : " declares"} only one of toolname / tooldescription. Chrome needs both — with one missing, no tool is registered at all.`,
-        evidence: incomplete.slice(0, 3).map((form) => ({
+        title: "WebMCP form declaration Chrome cannot expose",
+        detail: `${incomplete.length} form${incomplete.length > 1 ? "s declare" : " declares"} a tool that will not register as written: ${sample.defects.join("; ")}. A declaration needs both attributes, a tool name of the specified shape, and a name on every required control.`,
+        evidence: incomplete.slice(0, 3).map(({ form, defects }) => ({
           source: "raw-html" as const,
-          summary: `${form.path}: ${attrValue(form, "toolname") ? "tooldescription missing" : "toolname missing"}`,
+          summary: `${form.path}: ${defects.join("; ")}`,
           path: form.path,
         })),
         remediation: {
-          summary: "Give the form both toolname and tooldescription.",
-          rationale: "Removing either attribute is how a form is opted out; both are required to register.",
-          snippet: correctedFormTag(dom, sample),
+          summary: "Fix the declaration so the tool actually registers.",
+          rationale:
+            "Chrome registers nothing when either attribute is missing, and its schema-validity audit fails a required control that has no name to key the schema property on.",
+          snippet,
           language: "html",
           docsUrl: DOCS_DECLARATIVE_API,
         },

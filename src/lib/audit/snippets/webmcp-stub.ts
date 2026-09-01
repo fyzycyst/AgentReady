@@ -17,9 +17,21 @@
  *
  * INVARIANTS.md: page content is hostile input. Selectors used to *read* the
  * page are constant strings (references are resolved by iterating and
- * comparing attributes); every page-derived value that reaches a snippet goes
- * through `escapeAttr`. The `querySelector(...)` string in the generated code
- * is output text, escaped like any other — it is never executed here.
+ * comparing attributes).
+ *
+ * Page values are kept RAW as data and encoded once per sink, because the two
+ * sinks disagree about what "safe" means (review W2):
+ *   - HTML attribute values and human-readable prose → `escapeAttr`.
+ *   - JavaScript/JSON strings, above all field names → `jsonString`, which is
+ *     `JSON.stringify` plus Unicode escapes for `< > &` so the output cannot
+ *     close an inline `<script>` in the page it is pasted into.
+ * Escaping a field name for HTML would silently rename it (`a&b` → `a&amp;b`)
+ * and the generated code would then miss the real control.
+ *
+ * The generated code locates its form by index into `document.forms` rather
+ * than by a selector built from page text: an id like `billing:email` is valid
+ * HTML but an invalid CSS selector, and sanitizing the selector can silently
+ * point it at a different element (review W3).
  */
 import type { ElementView, HtmlQuery } from "../contract";
 import { escapeAttr } from "../escape";
@@ -39,6 +51,17 @@ export const POLYFILL_SCRIPT_TAG =
 
 export const POLYFILL_COMMENT = "// Until Chrome ships WebMCP by default, include the polyfill:";
 
+/**
+ * The polyfill tag as it appears inside a generated JavaScript comment.
+ *
+ * The closing tag is written `<\/script>` because the imperative snippet is
+ * meant to be pasted into an inline `<script>`, and an HTML parser ends that
+ * element at the first literal `</script>` — comment or not. Same reason
+ * `jsonString` Unicode-escapes `<`; this is our own constant rather than page
+ * content, so it gets the readable idiom instead.
+ */
+const POLYFILL_TAG_IN_COMMENT = `// ${POLYFILL_SCRIPT_TAG.replace("</script>", "<\\/script>")}`;
+
 /** webmcp-facts §8. */
 export const DOCS_DECLARATIVE_API = "https://developer.chrome.com/docs/ai/webmcp/declarative-api";
 export const DOCS_IMPERATIVE_API = "https://developer.chrome.com/docs/ai/webmcp/imperative-api";
@@ -50,8 +73,10 @@ const EXECUTE_RETURN_NOTE = "// plain JSON-serializable value — not an MCP { c
 export type StubParamType = "string" | "number" | "integer" | "boolean";
 
 export interface StubParam {
+  /** RAW control name, never truncated — this is an identity, not display text. */
   readonly name: string;
   readonly type: StubParamType;
+  /** RAW label text, whitespace-collapsed and capped; encoded per sink. */
   readonly description: string;
   readonly required: boolean;
 }
@@ -59,7 +84,10 @@ export interface StubParam {
 export interface WebMcpStub {
   /** Evidence locator for the form the stub was generated from. */
   readonly formPath: string;
+  /** Position among `document.forms`; how the generated code finds the form. */
+  readonly formIndex: number;
   readonly toolName: string;
+  /** RAW description, whitespace-collapsed and capped; encoded per sink. */
   readonly description: string;
   /** The form's opening tag with tool attributes, one line per control. */
   readonly declarative: string;
@@ -71,36 +99,65 @@ export interface WebMcpStub {
 /** Input types that are never a tool parameter. */
 const EXCLUDED_INPUT_TYPES = new Set(["hidden", "submit", "button", "reset", "image"]);
 
+/**
+ * File inputs are excluded from the schema on top of that: their value cannot
+ * be set programmatically (assigning `.value` throws), so declaring one as a
+ * parameter promises something the generated executor cannot deliver (W4).
+ */
+const UNSETTABLE_INPUT_TYPES = new Set(["file"]);
+
 const MAX_TOOL_NAME = 40;
 const MAX_DESCRIPTION = 120;
-const MAX_SELECTOR = 120;
-const DEFAULT_LITERAL_MAX = MAX_DESCRIPTION;
+/** Field names carry identity, so they are escaped but never shortened. */
+const UNCAPPED = Infinity;
 const FALLBACK_TOOL_NAME = "submit_form";
 
 /** Attribute names we are willing to echo back into a snippet. */
 const SAFE_ATTR_NAME = /^[a-zA-Z_:][-a-zA-Z0-9_:.]*$/;
 
 /**
- * Characters allowed in the generated `querySelector(...)` argument.
- * `ElementView.path` is built by the acquisition layer from tag names plus the
- * page's own `id`s, so only the id part is hostile. Anything outside this set
- * — quotes, backslashes, `<`, `&` — is dropped rather than escaped, which is
- * strictly safer: the result can break out of neither the JS string literal
- * nor the surrounding HTML, and stays a usable selector.
+ * Property names that are never emitted as tool parameters.
+ *
+ * `__proto__` on an object literal invokes the prototype setter instead of
+ * creating an own property, so a control named `__proto__` yields a schema
+ * whose `properties` and `required` disagree; `constructor` and `prototype`
+ * are the same class of trap for anything that later reflects over the schema.
+ * They cannot be populated through `form.elements.namedItem()` safely either,
+ * so they are dropped from the params, the schema and the HTML alike rather
+ * than half-supported.
  */
-const SAFE_SELECTOR_CHARS = /[^A-Za-z0-9_\-#.:()>[\]= ]/g;
+const RESERVED_PARAM_NAMES = new Set(["__proto__", "constructor", "prototype"]);
 
-function safeSelector(path: string): string {
-  return path.replace(/\s+/g, " ").trim().slice(0, MAX_SELECTOR).replace(SAFE_SELECTOR_CHARS, "");
+/**
+ * Characters that are structurally meaningless to JSON but dangerous in HTML,
+ * plus the two line terminators that are legal in JSON strings and illegal in
+ * JS ones. Applying this to serialized JSON is safe because `<`, `>` and `&`
+ * can only occur inside string literals there.
+ */
+const HTML_UNSAFE_IN_JS: readonly (readonly [RegExp, string])[] = [
+  [/</g, "\\u003c"],
+  [/>/g, "\\u003e"],
+  [/&/g, "\\u0026"],
+  [/\u2028/g, "\\u2028"],
+  [/\u2029/g, "\\u2029"],
+];
+
+function escapeForScript(serialized: string): string {
+  return HTML_UNSAFE_IN_JS.reduce((s, [pattern, replacement]) => s.replace(pattern, replacement), serialized);
 }
 
 /**
- * A page-derived value that lands inside a generated JS string literal.
- * `escapeAttr` has already removed `"`; dropping backslashes removes the only
- * remaining way to escape past the closing quote of the literal we emit.
+ * Encode a raw page-derived value as a JavaScript string literal, quotes
+ * included. `JSON.stringify` handles quotes, backslashes and control
+ * characters; the extra Unicode escapes mean the result cannot close an inline
+ * `<script>` in the page the snippet is pasted into.
+ *
+ * This is the *only* encoder used for values that must keep their exact
+ * identity — field names above all. `escapeAttr` mangles them (`&` becomes
+ * `&amp;`), which is correct for an HTML attribute and wrong for a lookup key.
  */
-function literal(value: string, max: number = DEFAULT_LITERAL_MAX): string {
-  return escapeAttr(value, max).replace(/\\/g, "");
+function jsonString(value: string): string {
+  return escapeForScript(JSON.stringify(value));
 }
 
 /** Tool attributes we re-emit ourselves, so they are dropped from the source tag. */
@@ -198,28 +255,35 @@ function schemaType(control: ElementView): StubParamType {
  * `type=search` box is skipped unless nothing else qualifies — site search is
  * a perfectly good tool, just not the interesting one when a real form exists.
  */
-function pickForm(dom: HtmlQuery): { form: ElementView; controls: readonly ElementView[] } | null {
+function pickForm(
+  dom: HtmlQuery,
+): { form: ElementView; formIndex: number; controls: readonly ElementView[] } | null {
+  // The index is the position among ALL forms in document order, which is what
+  // `document.forms` exposes at runtime — so it must be taken before filtering.
   const candidates = dom
     .all("form")
-    .map((form) => ({ form, controls: toolParamControls(form) }))
+    .map((form, formIndex) => ({ form, formIndex, controls: toolParamControls(form) }))
     .filter((c) => c.controls.length > 0);
   if (candidates.length === 0) return null;
   return candidates.find((c) => !isSearchOnly(c.controls)) ?? candidates[0];
 }
 
+/** HTML sink. `toolName` is slug-constrained; `description` is raw here. */
 function openingTag(form: ElementView, toolName: string, description: string): string {
   const attrs = Object.entries(form.attrs())
     .filter(([name]) => SAFE_ATTR_NAME.test(name) && !TOOL_ATTRS.has(name.toLowerCase()))
     .map(([name, value]) => (value === "" ? ` ${name}` : ` ${name}="${escapeAttr(value)}"`))
     .join("");
-  return `<form${attrs} toolname="${toolName}" tooldescription="${description}">`;
+  return `<form${attrs} toolname="${toolName}" tooldescription="${escapeAttr(description, MAX_DESCRIPTION)}">`;
 }
 
+/** HTML sink: every value here goes through the HTML escaper. */
 function controlLine(control: ElementView, param: StubParam): string {
   const id = control.attr("id");
   const idAttr = id ? ` id="${escapeAttr(id)}"` : "";
-  const nameAttr = ` name="${param.name}"`;
-  const paramAttr = ` toolparamdescription="${param.description}"`;
+  // Never capped: a truncated name is a different field (W2).
+  const nameAttr = ` name="${escapeAttr(param.name, UNCAPPED)}"`;
+  const paramAttr = ` toolparamdescription="${escapeAttr(param.description, MAX_DESCRIPTION)}"`;
 
   if (control.tag === "textarea") return `  <textarea${idAttr}${nameAttr}${paramAttr}></textarea>`;
   if (control.tag === "select") return `  <select${idAttr}${nameAttr}${paramAttr}>…</select>`;
@@ -228,11 +292,21 @@ function controlLine(control: ElementView, param: StubParam): string {
   return `  <input${idAttr}${nameAttr}${typeAttr}${paramAttr}>`;
 }
 
-/** Build the schema as data, then serialize — the output is JSON by construction. */
+/**
+ * Build the schema as data, then serialize — the output is JSON by
+ * construction. `properties` has a null prototype so that a page-supplied
+ * `__proto__` key would create an own property rather than invoking the
+ * prototype setter (W1); reserved names are filtered out anyway, and this is
+ * the belt to that suspenders.
+ */
 export function inputSchemaFor(params: readonly StubParam[]): Record<string, unknown> {
-  const properties: Record<string, unknown> = {};
-  for (const p of params) properties[p.name] = { type: p.type, description: p.description };
-  const required = params.filter((p) => p.required).map((p) => p.name);
+  const properties: Record<string, unknown> = Object.create(null);
+  const required: string[] = [];
+  for (const p of params) {
+    if (RESERVED_PARAM_NAMES.has(p.name)) continue;
+    properties[p.name] = { type: p.type, description: p.description };
+    if (p.required) required.push(p.name);
+  }
   return required.length > 0
     ? { type: "object", properties, required }
     : { type: "object", properties };
@@ -240,38 +314,61 @@ export function inputSchemaFor(params: readonly StubParam[]): Record<string, unk
 
 /** JSON, re-indented to sit inside the registerTool object literal. */
 function renderSchema(params: readonly StubParam[]): string {
-  return JSON.stringify(inputSchemaFor(params), null, 2)
+  return escapeForScript(JSON.stringify(inputSchemaFor(params), null, 2))
     .split("\n")
     .map((line, i) => (i === 0 ? line : "  " + line))
     .join("\n");
 }
 
+/**
+ * The body that populates and submits the form. Assignment is type-aware:
+ * a checkbox declared `boolean` in the schema has to end up `checked`, not
+ * carrying the string "true" (W4). The `instanceof` chain both selects the
+ * right assignment and narrows `namedItem`'s `RadioNodeList | Element | null`
+ * so the emitted TypeScript compiles as written (WN2).
+ */
+function executeBody(toolName: string, formIndex: number, formLabel: string): readonly string[] {
+  return [
+    "  async execute(input) {",
+    `    const form = document.forms[${formIndex}];  // ${formIndex}: the ${jsonString(formLabel)} form`,
+    `    if (!(form instanceof HTMLFormElement)) throw new Error(${jsonString(`${toolName}: form not found on this page`)});`,
+    "    for (const [key, value] of Object.entries(input)) {",
+    "      const field = form.elements.namedItem(key);",
+    '      if (field instanceof HTMLInputElement && field.type === "checkbox") {',
+    "        field.checked = Boolean(value);",
+    "      } else if (",
+    "        field instanceof HTMLInputElement ||",
+    "        field instanceof HTMLTextAreaElement ||",
+    "        field instanceof HTMLSelectElement ||",
+    "        field instanceof RadioNodeList",
+    "      ) {",
+    "        field.value = String(value);",
+    "      }",
+    "    }",
+    "    form.requestSubmit();",
+    `    return ${jsonString(`Submitted ${toolName}`)};  ${EXECUTE_RETURN_NOTE}`,
+    "  },",
+  ];
+}
+
 function renderImperative(args: {
   toolName: string;
   description: string;
-  selector: string;
+  formIndex: number;
+  formLabel: string;
   params: readonly StubParam[];
   pageUrl: string;
 }): string {
-  const { toolName, description, selector, params, pageUrl } = args;
+  const { toolName, description, formIndex, formLabel, params, pageUrl } = args;
   return [
     POLYFILL_COMMENT,
-    `// ${POLYFILL_SCRIPT_TAG}`,
-    `// Generated from the form at ${literal(pageUrl, MAX_DESCRIPTION)}`,
+    POLYFILL_TAG_IN_COMMENT,
+    `// Generated from the form at ${escapeAttr(pageUrl, MAX_DESCRIPTION)}`,
     "document.modelContext.registerTool({",
-    `  name: "${toolName}",`,
-    `  description: "${description}",`,
+    `  name: ${jsonString(toolName)},`,
+    `  description: ${jsonString(description)},`,
     `  inputSchema: ${renderSchema(params)},`,
-    "  async execute(input) {",
-    `    const form = document.querySelector("${selector}");`,
-    `    if (!form) throw new Error("${toolName}: form not found on this page");`,
-    "    for (const [key, value] of Object.entries(input)) {",
-    "      const field = form.elements.namedItem(key);",
-    "      if (field) field.value = String(value);",
-    "    }",
-    "    form.requestSubmit();",
-    `    return "Submitted ${toolName}";  ${EXECUTE_RETURN_NOTE}`,
-    "  },",
+    ...executeBody(toolName, formIndex, formLabel),
     "});",
   ].join("\n");
 }
@@ -289,11 +386,9 @@ function deriveNames(dom: HtmlQuery, form: ElementView): { toolName: string; des
     form.attr("id")?.trim() || form.attr("name")?.trim() || submit || heading || FALLBACK_TOOL_NAME;
   const toolName = slug(rawName) || FALLBACK_TOOL_NAME;
 
-  // The description is emitted both as an HTML attribute and inside a JS
-  // string literal, so it takes the stricter of the two treatments.
-  const rawDescription = legend || heading || submit || `Submit the ${toolName} form`;
-  const description = literal(rawDescription, MAX_DESCRIPTION) || `Submit the ${toolName} form`;
-  return { toolName, description };
+  // Kept raw (collapsed and capped only); each sink encodes it for itself.
+  const rawDescription = (legend || heading || submit || "").replace(/\s+/g, " ").trim().slice(0, MAX_DESCRIPTION);
+  return { toolName, description: rawDescription || `Submit the ${toolName} form` };
 }
 
 /**
@@ -307,18 +402,23 @@ export function correctedFormTag(dom: HtmlQuery, form: ElementView): string {
   const toolName = /^[A-Za-z0-9_.-]{1,128}$/.test(existingName)
     ? existingName
     : slug(existingName) || derived.toolName;
-  const existingDescription = literal(form.attr("tooldescription")?.trim() ?? "", MAX_DESCRIPTION);
+  const existingDescription = (form.attr("tooldescription")?.trim() ?? "").slice(0, MAX_DESCRIPTION);
   return openingTag(form, toolName, existingDescription || derived.description);
 }
 
-/** One control, rewritten with `toolparamdescription` — the params remediation. */
+/**
+ * One control, rewritten with `toolparamdescription` — the params remediation.
+ * A control with no `name` gets a suggested one from its id or label, since a
+ * nameless control cannot become a schema property at all (W5).
+ */
 export function controlSnippetLine(dom: HtmlQuery, control: ElementView): string {
-  const name = escapeAttr(control.attr("name")?.trim() ?? "");
   const label = labelText(dom, control);
+  const name =
+    control.attr("name")?.trim() || slug(control.attr("id") ?? "") || slug(label) || "field";
   const param: StubParam = {
     name,
     type: schemaType(control),
-    description: escapeAttr(label, MAX_DESCRIPTION) || name || "What this field expects",
+    description: label.slice(0, MAX_DESCRIPTION) || name || "What this field expects",
     required: control.attr("required") !== undefined,
   };
   return controlLine(control, param).trimStart();
@@ -333,37 +433,57 @@ export function controlSnippetLine(dom: HtmlQuery, control: ElementView): string
 export function generateWebMcpStub(dom: HtmlQuery, pageUrl: string): WebMcpStub | null {
   const picked = pickForm(dom);
   if (!picked) return null;
-  const { form, controls } = picked;
+  const { form, formIndex, controls } = picked;
   const { toolName, description } = deriveNames(dom, form);
 
-  // Controls without a name cannot be submitted or keyed in a schema.
-  const named = controls.filter((c) => (c.attr("name")?.trim() ?? "") !== "");
-  const params: StubParam[] = named.map((control) => {
-    const name = escapeAttr(control.attr("name")!.trim());
-    const label = labelText(dom, control);
-    return {
-      name,
-      type: schemaType(control),
-      description: escapeAttr(label, MAX_DESCRIPTION) || name,
-      required: control.attr("required") !== undefined,
-    };
-  });
+  // Keep only controls that can actually become a schema property AND be
+  // populated by the generated executor. Names are raw: they are the key the
+  // agent sends and the key `namedItem` looks up, so they must match the page
+  // byte for byte.
+  const seen = new Set<string>();
+  const usable: { control: ElementView; param: StubParam }[] = [];
+  for (const control of controls) {
+    const name = control.attr("name")?.trim() ?? "";
+    if (!name) continue; // cannot be submitted or keyed in a schema
+    if (RESERVED_PARAM_NAMES.has(name)) continue; // W1
+    if (control.tag === "input" && UNSETTABLE_INPUT_TYPES.has((control.attr("type") ?? "").toLowerCase())) {
+      continue; // W4: a file input's value cannot be set
+    }
+    if (seen.has(name)) continue; // a duplicate would overwrite its twin in the schema
+    seen.add(name);
+    usable.push({
+      control,
+      param: {
+        name,
+        type: schemaType(control),
+        description: labelText(dom, control).slice(0, MAX_DESCRIPTION) || name,
+        required: control.attr("required") !== undefined,
+      },
+    });
+  }
+  const params = usable.map((u) => u.param);
 
   const declarative = [
     openingTag(form, toolName, description),
-    ...named.map((control, i) => controlLine(control, params[i])),
+    ...usable.map((u) => controlLine(u.control, u.param)),
     "  <!-- …your existing labels and submit button stay as they are… -->",
     "</form>",
   ].join("\n");
 
-  const selector = safeSelector(form.path);
-
   return {
     formPath: form.path,
+    formIndex,
     toolName,
     description,
     declarative,
-    imperative: renderImperative({ toolName, description, selector, params, pageUrl }),
+    imperative: renderImperative({
+      toolName,
+      description,
+      formIndex,
+      formLabel: form.attr("id")?.trim() || description,
+      params,
+      pageUrl,
+    }),
     params,
   };
 }
@@ -379,11 +499,10 @@ export function genericStubSnippets(pageUrl: string): { declarative: string; imp
   } catch {
     // Keep the raw string; it is escaped below either way.
   }
-  const safeOrigin = literal(origin, MAX_DESCRIPTION);
-  const description = `Search ${safeOrigin}`;
+  const description = `Search ${origin.replace(/\s+/g, " ").trim().slice(0, MAX_DESCRIPTION)}`;
 
   const declarative = [
-    `<form action="/search" method="get" toolname="search_site" tooldescription="${description}">`,
+    `<form action="/search" method="get" toolname="search_site" tooldescription="${escapeAttr(description, MAX_DESCRIPTION)}">`,
     '  <input name="q" type="search" toolparamdescription="Search query" required>',
     '  <button type="submit">Search</button>',
     "</form>",
@@ -391,10 +510,10 @@ export function genericStubSnippets(pageUrl: string): { declarative: string; imp
 
   const imperative = [
     POLYFILL_COMMENT,
-    `// ${POLYFILL_SCRIPT_TAG}`,
+    POLYFILL_TAG_IN_COMMENT,
     "document.modelContext.registerTool({",
     '  name: "search_site",',
-    `  description: "${description}",`,
+    `  description: ${jsonString(description)},`,
     `  inputSchema: ${renderSchema([{ name: "q", type: "string", description: "Search query", required: true }])},`,
     "  async execute({ q }, { signal }) {",
     '    const res = await fetch("/api/search?q=" + encodeURIComponent(q), { signal });',

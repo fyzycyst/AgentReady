@@ -49,13 +49,73 @@ describe("webmcp-capability", () => {
       <form id="book" toolname="book_table"><input name="party"><button type="submit">Book</button></form>
     </body></html>`;
     const r = await webmcpCapabilityCheck.run(buildContext(html));
-    expect(r.score).toBe(0);
-    expect(ids(r.findings)).toContain("webmcp.declarative.incomplete");
+    // Partial credit only: Chrome registers nothing from this form.
+    expect(r.score).toBe(20);
+    const incomplete = r.findings.find((f) => f.id === "webmcp.declarative.incomplete")!;
+    expect(incomplete.severity).toBe("medium");
+    expect(incomplete.detail).toContain("tooldescription is missing");
     // The incomplete finding carries the fix, so the opportunity finding stays quiet.
     expect(ids(r.findings)).not.toContain("webmcp.none");
-    const snippet = r.findings.find((f) => f.id === "webmcp.declarative.incomplete")!.remediation!.snippet!;
-    expect(snippet).toContain('toolname="book_table"');
-    expect(snippet).toContain('tooldescription="Book a table"');
+    expect(ids(r.findings)).not.toContain("webmcp.declarative.present");
+    expect(incomplete.remediation!.snippet).toContain('toolname="book_table"');
+    expect(incomplete.remediation!.snippet).toContain('tooldescription="Book a table"');
+  });
+
+  it("withholds the strong signal from a toolname that is not a valid tool name", async () => {
+    const html = `<html><body><h2>Book a table</h2>
+      <form toolname="not valid!" tooldescription="Book a table">
+        <label for="p">Party</label><input id="p" name="party"><button type="submit">Book</button>
+      </form></body></html>`;
+    const r = await webmcpCapabilityCheck.run(buildContext(html));
+    expect(r.score).toBe(20);
+    expect(ids(r.findings)).toEqual(["webmcp.declarative.incomplete"]);
+    const incomplete = r.findings.find((f) => f.id === "webmcp.declarative.incomplete")!;
+    expect(incomplete.detail).toContain("toolname is not a valid tool name");
+    // The remediation slugs the name into the shape the spec allows.
+    expect(incomplete.remediation!.snippet).toContain('toolname="not_valid"');
+    expect(r.summary).toBe("Partial WebMCP support — the tools aren't fully declared yet.");
+  });
+
+  it("accepts every character the verified tool-name shape allows", async () => {
+    // webmcp-facts §1/§2: 1–128 chars from [A-Za-z0-9_.-], no leading-letter rule.
+    for (const name of ["book_table", "v2.check-availability", "_leading", "9", "a".repeat(128)]) {
+      const html = `<html><body><form toolname="${name}" tooldescription="Does a thing"><input name="a"><button type="submit">Go</button></form></body></html>`;
+      const r = await webmcpCapabilityCheck.run(buildContext(html));
+      expect(ids(r.findings), name).toContain("webmcp.declarative.present");
+      expect(r.score, name).toBe(60);
+    }
+    for (const name of ["not valid!", "a".repeat(129), "has space", "emoji🙂"]) {
+      const html = `<html><body><form toolname="${name}" tooldescription="Does a thing"><input name="a"><button type="submit">Go</button></form></body></html>`;
+      const r = await webmcpCapabilityCheck.run(buildContext(html));
+      expect(ids(r.findings), name).toContain("webmcp.declarative.incomplete");
+      expect(r.score, name).toBe(20);
+    }
+  });
+
+  it("withholds the strong signal when a required control has no name", async () => {
+    const html = `<html><body><h2>Book a table</h2>
+      <form toolname="book_table" tooldescription="Book a table">
+        <label for="p">Party size</label><input id="p" required>
+        <button type="submit">Book</button>
+      </form></body></html>`;
+    const r = await webmcpCapabilityCheck.run(buildContext(html));
+    expect(r.score).toBe(20);
+    const incomplete = r.findings.find((f) => f.id === "webmcp.declarative.incomplete")!;
+    expect(incomplete.detail).toContain("no name attribute");
+    // A corrected form tag cannot express this defect, so the control comes too.
+    expect(incomplete.remediation!.snippet).toContain('toolname="book_table"');
+    expect(incomplete.remediation!.snippet).toContain('name="p"');
+  });
+
+  it("still credits a valid declaration when a second form is broken", async () => {
+    const html = `<html><body>
+      <form toolname="good_tool" tooldescription="Works"><input name="a" toolparamdescription="A"><button type="submit">Go</button></form>
+      <form toolname="bad tool" tooldescription="Broken"><input name="b"><button type="submit">Go</button></form>
+    </body></html>`;
+    const r = await webmcpCapabilityCheck.run(buildContext(html));
+    expect(r.score).toBe(70);
+    expect(ids(r.findings)).toContain("webmcp.declarative.present");
+    expect(ids(r.findings)).toContain("webmcp.declarative.incomplete");
   });
 
   it("credits an imperative reference and flags the deprecated navigator alias", async () => {
