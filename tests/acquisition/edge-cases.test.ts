@@ -80,4 +80,14 @@ describe("acquisition edge cases", () => {
     const report = await runAudit(URL, fakeDeps({ [URL]: { body: "\uFEFF \n<!-- leading comment -->\n<!doctype html><html><body>ok</body></html>" } }), CLOCK);
     expect(report.ok).toBe(true);
   });
+
+  it("accepts XHTML preceded by an XML prolog", async () => {
+    const report = await runAudit(URL, fakeDeps({ [URL]: { body: '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>ok</body></html>' } }), CLOCK);
+    expect(report.ok).toBe(true);
+  });
+
+  it("still blocks plain text that contains no HTML tags", async () => {
+    const report = await runAudit(URL, fakeDeps({ [URL]: { body: "just some text, no tags" } }), CLOCK);
+    expect(report).toMatchObject({ ok: false, code: "not-html" });
+  });
 });

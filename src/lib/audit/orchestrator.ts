@@ -99,8 +99,14 @@ function looksLikeChallenge(body: string, headers: Readonly<Record<string, strin
 }
 
 function looksLikeHtml(body: string): boolean {
-  const prefix = body.slice(0, 4096).replace(/^\uFEFF/, "").replace(/^\s*(?:<!--[^]*?-->\s*)*/i, "");
-  return /^(?:<!doctype\s+html\b|<html\b|<head\b|<body\b|<div\b|<p[\s>])/i.test(prefix);
+  const first = body.slice(0, 4096);
+  const stripComments = (value: string) => value.replace(/^\s*(?:<!--[^]*?-->\s*)*/i, "");
+  const prefix = stripComments(stripComments(first.replace(/^\uFEFF/, "")).replace(/^<\?xml\b[^]*?\?>\s*/i, ""));
+  const anchored = /^(?:<!doctype\s+html\b|<html\b|<head\b|<body\b|<div\b|<p[\s>])/i.test(prefix);
+  // Keep the old recognizer as a floor: becoming stricter must not block pages
+  // that were previously auditable from an HTML-looking first 4 KB.
+  const legacyUnanchored = /<html|<!doctype html|<body|<head|<div|<p[\s>]/i.test(first);
+  return anchored || legacyUnanchored;
 }
 
 function metaRefreshNote(body: string, pageUrl: string): string | null {
