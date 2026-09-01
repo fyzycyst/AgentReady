@@ -9,6 +9,11 @@
  *   Submit affordance (per-control ownership) .... 10
  */
 import type { AuditCheck, AuditContext, CheckResult, ElementView, Finding, HtmlQuery } from "../contract";
+import { escapeAttr } from "../escape";
+
+// escapeAttr now lives in ../escape (shared with the WebMCP stub generator);
+// re-exported here because it was part of this module's surface first.
+export { escapeAttr };
 
 const EXCLUDED_INPUT_TYPES = new Set(["hidden", "submit", "button", "reset", "image"]);
 
@@ -45,18 +50,6 @@ const AUTOCOMPLETE_RULES: readonly AutocompleteRule[] = [
 const VALID_AUTOCOMPLETE = new Set(
   AUTOCOMPLETE_RULES.flatMap((r) => r.tokens).concat(["off", "on"]),
 );
-
-/** Escape page-derived values for HTML attribute or text insertion in snippets. */
-export function escapeAttr(value: string): string {
-  return value
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 60)
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
 function collectControls(dom: HtmlQuery): ElementView[] {
   const controls: ElementView[] = [];

@@ -29,6 +29,8 @@ flowchart LR
 | `src/lib/audit/contract.ts` | The check-module contract (see INTERFACES.md). | — |
 | `src/lib/audit/orchestrator.ts` | Sequences acquisition → context → checks → score; produces `AuditReport` or `BlockedReport`. | — |
 | `src/lib/audit/checks/` | Pure check modules, one per category, registered in `index.ts`. | Consume untrusted HTML via `HtmlQuery` only |
+| `src/lib/audit/escape.ts` | The one escaper for page-derived strings placed in remediation snippets (`escapeAttr`). Re-exported from `checks/form-semantics.ts` for compatibility. | Handles untrusted values |
+| `src/lib/audit/snippets/` | Snippet generators shared by checks. `webmcp-stub.ts` turns the page's first real form into declarative + imperative WebMCP tool code. Pure; sees the DOM only through `HtmlQuery`. | Emits escaped, inert text |
 | `src/lib/audit/scoring.ts`, `weights.ts` | Weighted mean with redistribution/coverage; Survival/Superpower/opportunity. | — |
 | `src/components/`, `src/app/*` | UI. Report page is a client component that calls the API. | — |
 

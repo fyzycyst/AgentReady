@@ -44,8 +44,10 @@ describe("runAudit", () => {
     const r = await runAudit("https://northwind.example/", d, clock);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.results).toHaveLength(6);
     expect(r.score.overall).toBeGreaterThanOrEqual(80);
-    expect(r.score.coverage).toBeCloseTo(0.85, 2);
+    // Phase 3 adds webmcp-capability, so every weighted category is now observed.
+    expect(r.score.coverage).toBeCloseTo(1.0, 2);
   });
 
   it("returns a blocked report without fetching the page when robots disallows us", async () => {

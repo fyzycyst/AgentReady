@@ -24,7 +24,8 @@ Settled by the Triumvirate (GPT Sol's blocking concern + Grok's sourced pitfalls
 - Positive credit requires validated evidence: MCP well-known files must be JSON objects with the spec's required fields; JSON-LD must have a schema.org `@context` and a non-empty `@type`. A catch-all 200 never earns points.
 - Every non-positive finding carries a `remediation` with a concrete `summary`; snippets use `document.modelContext` (never `navigator.modelContext`) for WebMCP.
 - A crashing check yields `score:null` and a note; it never sinks the report.
-- **Page content is hostile input inside checks too.** Never interpolate page-derived strings (`id`, `name`, `href`, text) into CSS selectors — selectors are constant strings; resolve references by iterating and comparing attributes. Any page-derived value placed in a remediation snippet is escaped (`& " < >`), whitespace-collapsed and length-capped. Scores are integers.
+- **Page content is hostile input inside checks too.** Never interpolate page-derived strings (`id`, `name`, `href`, text) into CSS selectors — selectors are constant strings; resolve references by iterating and comparing attributes. Scores are integers.
+- **Snippets encode per sink, and identity is never mangled.** A page-derived value is kept raw as data and encoded once for the sink it reaches: `escapeAttr` (`& " < >`, whitespace-collapsed, length-capped) for HTML attribute values and human-readable prose; `JSON.stringify` plus Unicode escapes for `< > & U+2028 U+2029` for JavaScript and JSON strings. Escaping a *field name* for HTML would silently rename it (`a&b` → `a&amp;b`) and the generated code would then miss the real control, so names are JSON-encoded and never truncated. Generated code addresses the DOM by index (`document.forms[i]`) rather than by a selector built from page text.
 
 ## Rendering
 
