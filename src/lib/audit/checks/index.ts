@@ -5,6 +5,11 @@
  */
 import type { AuditCheck } from "../contract";
 import { agentDiscoveryCheck } from "./agent-discovery";
+import { accessRenderabilityCheck } from "./access-renderability";
 import { machineReadableStructureCheck } from "./machine-readable-structure";
 
-export const CHECKS: readonly AuditCheck[] = [agentDiscoveryCheck, machineReadableStructureCheck];
+export const CHECKS: readonly AuditCheck[] = [
+  agentDiscoveryCheck,
+  machineReadableStructureCheck,
+  accessRenderabilityCheck,
+];
