@@ -32,6 +32,13 @@ const STEPS: { id: AgentPathStep; label: string; question: string }[] = [
 export function ReportView() {
   const params = useSearchParams();
   const url = params.get("url") ?? "";
+  const cardHost = (() => {
+    try {
+      return new URL(url.includes("://") ? url : `https://${url}`).hostname;
+    } catch {
+      return "report";
+    }
+  })();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [stage, setStage] = useState(0);
 
@@ -99,6 +106,15 @@ export function ReportView() {
         </div>
         <div className="flex items-center gap-3 text-sm">
           <CopyButton text={() => window.location.href} label="Copy link" copiedLabel="Link copied" />
+          {url && (
+            <a
+              href={`/api/card?url=${encodeURIComponent(url)}`}
+              download={`agentready-${cardHost}.png`}
+              className="rounded font-mono text-[11px] text-muted hover:text-text"
+            >
+              Download card
+            </a>
+          )}
           <Link href="/" className="rounded font-mono text-[11px] text-muted hover:text-text">
             Audit another
           </Link>
