@@ -2,7 +2,7 @@
 
 | # | Risk | Likelihood | Impact | Mitigation | Owner/Status |
 |---|---|---|---|---|---|
-| 1 | Famous sites 403 the Vercel egress IP during the live judge demo | High | High | Landing ships one-click **safe-URL chips** (pre-tested) + first-party `/demo` (P3). Blocked fetch → polished `BlockedReport`, never a spinner. Re-test chips on recording day. | Open (P3) |
+| 1 | Famous sites 403 the Vercel egress IP during the live judge demo | ~~High~~ Low | High | **Tested 2026-09-01 from production** (agent-ready-cyan.vercel.app): all 8 chips/famous sites audit clean from Vercel egress, 0.2–1.2 s. Re-test on recording day remains prudent. | Closed (verified) |
 | 2 | SSRF via the public URL field | Medium | Critical | Invariants 1–10 in `docs/INVARIANTS.md`; bypass corpus in `tests/acquisition/`. | Mitigated (P1) |
 | 3 | Audit exceeds the 30 s judge budget | Medium | High | Page 10 s, sidecars shared 4.5 s, no rendering, `maxDuration: 30`. Typical audit ≈ 1–3 s. | Mitigated |
 | 4 | Every site scores F because WebMCP adoption is ~0 | High | High | WebMCP weighted 15; Survival vs Superpower layers; computed "+N opportunity". | Mitigated by design (P3 to wire UI) |
