@@ -98,6 +98,45 @@ function looksLikeChallenge(body: string, headers: Readonly<Record<string, strin
   return null;
 }
 
+function looksLikeHtml(body: string): boolean {
+  const first = body.slice(0, 4096);
+  const stripComments = (value: string) => value.replace(/^\s*(?:<!--[^]*?-->\s*)*/i, "");
+  const prefix = stripComments(stripComments(first.replace(/^\uFEFF/, "")).replace(/^<\?xml\b[^]*?\?>\s*/i, ""));
+  const anchored = /^(?:<!doctype\s+html\b|<html\b|<head\b|<body\b|<div\b|<p[\s>])/i.test(prefix);
+  // Keep the old recognizer as a floor: becoming stricter must not block pages
+  // that were previously auditable from an HTML-looking first 4 KB.
+  const legacyUnanchored = /<html|<!doctype html|<body|<head|<div|<p[\s>]/i.test(first);
+  return anchored || legacyUnanchored;
+}
+
+function metaRefreshNote(body: string, pageUrl: string): string | null {
+  const meta = /<meta\b[^>]*\bhttp-equiv\s*=\s*(["'])?refresh\1[^>]*>/gi;
+  for (const tag of body.match(meta) ?? []) {
+    const content = /\bcontent\s*=\s*(["'])(.*?)\1/i.exec(tag)?.[2];
+    const parsed = content && /^\s*(\d+(?:\.\d+)?)\s*;\s*url\s*=\s*(.*?)\s*$/i.exec(content);
+    if (!parsed || Number(parsed[1]) > 5) continue;
+    const target = parsed[2].replace(/^['"]|['"]$/g, "");
+    try {
+      const resolved = new URL(target, pageUrl);
+      if (resolved.origin === new URL(pageUrl).origin) {
+        return `Page redirects via meta refresh to ${resolved.toString()}; audit reflects the URL you gave.`;
+      }
+    } catch {
+      // Invalid page-supplied targets are not an acquisition signal.
+    }
+  }
+  return null;
+}
+
+function frameShellNote(raw: AuditContext["page"]["raw"]): string | null {
+  if (raw.dom.all("frameset").length > 0) return "Content lives inside a frame; agents (and this audit) see only the shell.";
+  const words = raw.dom.bodyText().split(/\s+/).filter(Boolean).length;
+  if (raw.dom.all("iframe").length > 0 && words < 30 && raw.dom.all("form").length === 0 && raw.dom.all("main").length === 0) {
+    return "Content lives inside a frame; agents (and this audit) see only the shell.";
+  }
+  return null;
+}
+
 const ROBOTS_DISALLOW_MESSAGE =
   "robots.txt disallows this path for our user agent, so we did not fetch it. That is itself the most important finding: well-behaved agents will not operate here.";
 
@@ -172,7 +211,7 @@ export async function runAudit(
       { status: res.status, evidence: challenge ?? undefined },
     );
   }
-  if (!/<html|<!doctype html|<body|<head|<div|<p[\s>]/i.test(res.body.slice(0, 4096))) {
+  if (!looksLikeHtml(res.body)) {
     return blocked(requestedUrl, fetchedAt, "not-html", "The response body does not look like HTML.", started, deps.now, { status: res.status });
   }
 
@@ -190,6 +229,10 @@ export async function runAudit(
   const rendered = await render(res.finalUrl);
   if (rendered.note) notes.push(rendered.note);
   if (res.truncated) notes.push("The page exceeded 2 MB; only the first 2 MB was analysed.");
+  const refresh = metaRefreshNote(res.body, res.finalUrl);
+  if (refresh) notes.push(refresh);
+  const frame = frameShellNote(raw);
+  if (frame) notes.push(frame);
 
   const ctx: AuditContext = {
     requestedUrl,

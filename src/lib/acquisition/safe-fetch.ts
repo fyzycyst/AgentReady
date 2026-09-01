@@ -237,26 +237,52 @@ async function resolveAllowed(
 
 const MEDIA_TYPE_RE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/;
 
-/** Parse a Content-Type header into a normalised media type, or null if malformed. */
-export function parseMediaType(ct: string | null): string | null {
+export interface ParsedMediaType {
+  readonly mime: string;
+  /** Untrusted charset label, normalized but not validated against TextDecoder. */
+  readonly charset: string | null;
+}
+
+/** Parse a Content-Type header into its normalised media type and charset, or null if malformed. */
+export function parseMediaType(ct: string | null): ParsedMediaType | null {
   if (!ct) return null;
-  const mime = ct.split(";")[0].trim().toLowerCase();
-  return MEDIA_TYPE_RE.test(mime) ? mime : null;
+  const [rawMime, ...params] = ct.split(";");
+  const mime = rawMime.trim().toLowerCase();
+  if (!MEDIA_TYPE_RE.test(mime)) return null;
+  const charsetParam = params.find((param) => /^\s*charset\s*=/i.test(param));
+  const rawCharset = charsetParam?.replace(/^\s*charset\s*=\s*/i, "").trim();
+  const charset = rawCharset?.replace(/^['"]|['"]$/g, "").trim().toLowerCase() || null;
+  return { mime, charset };
 }
 
 /** Exact type or family wildcard ("text/*") match; malformed types never pass. */
 export function contentTypeAllowed(ct: string | null, policy: SafeFetchPolicy): boolean {
   if (policy.allowedContentTypes.length === 0) return true;
-  const mime = parseMediaType(ct);
-  if (!mime) return false;
-  const family = mime.split("/")[0];
-  return policy.allowedContentTypes.some((rule) => (rule.endsWith("/*") ? rule.slice(0, -2) === family : rule === mime));
+  const mediaType = parseMediaType(ct);
+  if (!mediaType) return false;
+  const family = mediaType.mime.split("/")[0];
+  return policy.allowedContentTypes.some((rule) => (rule.endsWith("/*") ? rule.slice(0, -2) === family : rule === mediaType.mime));
+}
+
+function metaCharset(bytes: Uint8Array): string | null {
+  const head = new TextDecoder("latin1", { fatal: false }).decode(bytes.subarray(0, 1024));
+  const match = /<meta\b[^>]*\bcharset\s*=\s*(?:["']([^"']+)["']|([^\s/>]+))/i.exec(head);
+  return (match?.[1] ?? match?.[2] ?? "").trim().toLowerCase() || null;
+}
+
+function decode(bytes: Uint8Array, charset: string | null): string {
+  try {
+    return new TextDecoder(charset ?? "utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  }
 }
 
 async function readBounded(
   body: ReadableStream<Uint8Array> | null,
   maxBytes: number,
   signal: AbortSignal,
+  headerCharset: string | null,
 ): Promise<{ text: string; truncated: boolean }> {
   if (!body) return { text: "", truncated: false };
   const reader = body.getReader();
@@ -288,7 +314,7 @@ async function readBounded(
     merged.set(c, offset);
     offset += c.byteLength;
   }
-  return { text: new TextDecoder("utf-8", { fatal: false }).decode(merged), truncated };
+  return { text: decode(merged, headerCharset ?? metaCharset(merged)), truncated };
 }
 
 function captureHeaders(h: Headers): Record<string, string> {
@@ -378,12 +404,12 @@ export async function safeFetch(
       if (!contentTypeAllowed(ct, policy)) {
         await res.body?.cancel().catch(() => {});
         const shown = parseMediaType(ct);
-        return { ok: false, code: "content-type", message: `Unsupported content type${shown ? ` (${shown})` : ""}.`, hops };
+        return { ok: false, code: "content-type", message: `Unsupported content type${shown ? ` (${shown.mime})` : ""}.`, hops };
       }
 
       let bodyRead: { text: string; truncated: boolean };
       try {
-        bodyRead = await readBounded(res.body, policy.maxBytes, signal);
+        bodyRead = await readBounded(res.body, policy.maxBytes, signal, parseMediaType(ct)?.charset ?? null);
       } catch (err) {
         if (isTimeoutError(err, signal)) {
           return { ok: false, code: "timeout", message: "The site took too long to send its content.", hops };
