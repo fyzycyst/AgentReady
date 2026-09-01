@@ -7,17 +7,19 @@ AgentReady reads a single HTML page (plus same-origin discovery files) and retur
 ## Key URLs
 
 - `/` — paste a URL and run an audit
-- `/demo` — A-grade WebMCP control (Le Petit Bistro reservations demo)
-- `/fixtures/soup` — intentionally broken “beautiful but broken” fixture (not indexed)
+- `/demo` — live WebMCP demo page: a restaurant booking form with declarative and imperative tools (Le Petit Bistro)
+- `/fixtures/soup` — deliberately broken showcase: a page that looks fine to a person and blocks an agent
+
+Grades are not published here: they are produced by the rubric, and the rubric changes. Audit any of these URLs to see its current score.
 
 ## API
 
 - `/openapi.json` — OpenAPI 3.1 description of everything below (also linked from `/` as `rel="service-desc"`)
 - `POST /api/audit` — body `{"url": "https://example.com/"}` → the full report: `score.overall` (0–100), `score.grade` (A–F), `score.coverage`, and per-category `results` with findings and paste-ready remediation snippets. `GET /api/audit?url=…` is equivalent.
 - `GET /api/card?url=…` — the same audit rendered as a 1200×630 PNG share card
-- `GET /report?url=…` — the human-readable report; this is also what the audit form on `/` submits to
+- `GET /report?url=…` — the human-readable report, rendered server-side; this is also what the audit form on `/` submits to, and it works with JavaScript disabled
 
-Rate limit: 12 requests per minute per client address. Nothing is stored. robots.txt is honoured before a page is fetched, so a disallowed URL returns `ok: false` with `code: "robots-disallow"` and no score.
+Rate limit: best-effort, ~12 requests/min per client per instance (it is enforced per warm serverless instance, not globally). Nothing is stored. robots.txt is honoured before a page is fetched, so a disallowed URL returns `ok: false` with `code: "robots-disallow"` and no score.
 
 ## WebMCP
 

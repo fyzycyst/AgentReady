@@ -26,6 +26,23 @@ interface BlockedReport {
 }
 ```
 
+## HTTP: `GET /report?url=`
+
+A server component (`src/app/report/page.tsx`, `dynamic = "force-dynamic"`). When
+`url` is present it applies the same boundary as the API — `rateLimit` on the
+first `x-forwarded-for` entry, then `normaliseAuditUrl` — and `await runAudit(…)`,
+handing the result to the client view as its initial state. The response body is
+therefore a **finished report**: this is what makes the landing form's
+`action="/report" method="get"` work with JavaScript disabled.
+
+Not wrapped in a Suspense/`loading.tsx` boundary on purpose: React reveals
+streamed Suspense content with an inline script, so a no-JS client would be left
+on the fallback. The audit blocks the response instead.
+
+`ReportView` keeps a client fetch path for the case where it is mounted without a
+server-side result; when `initial` is supplied it never fetches. `POST /api/audit`
+is unchanged and remains the programmatic entry point.
+
 ## HTTP: `GET /openapi.json`
 
 OpenAPI 3.1 description of `POST|GET /api/audit` and `GET /api/card`, served as
@@ -43,16 +60,34 @@ be made there in the same PR.
 - **Declaratively** — `toolname` / `tooldescription` on the audit form, with
   `toolparamdescription` on the `url` input. The form is a real
   `GET /report?url=…`, so it works with JavaScript off.
-- **Imperatively** — `AUDIT_SITE_TOOL_SCRIPT`, emitted as an *inline* `<script>`
-  by `src/components/landing/webmcp-audit-tool.tsx`. Inline is required, not
+- **Imperatively** — `AUDIT_SITE_TOOL_SCRIPT` (`audit-site-tool-script.ts`),
+  emitted as an *inline* `<script>` by
+  `src/components/landing/webmcp-audit-tool.tsx`. Inline is required, not
   incidental: our own `webmcp-capability` check reads served HTML, so a
   registration hidden in a bundle is invisible to agents and auditors alike.
 
 `execute({ url })` calls `POST /api/audit` and resolves to a plain
 JSON-serializable value — `{ url, overall, grade, coverage, topFinding }`, or
-`{ error, url }` for a page that could not be audited. Never an MCP
-`{ content: [...] }` envelope. Unregistration is `AbortController.abort()` (on
-`pagehide`); the spec has no `unregisterTool`.
+`{ error, url }` for a page that could not be audited, including transport and
+decoding failures. Never an MCP `{ content: [...] }` envelope. An aborted call
+rejects rather than reporting a failed audit.
+
+**Lifetime is split, and both halves are required.** The spec has no
+`unregisterTool`; unregistering means aborting the signal given to
+`registerTool`.
+
+| Event | Owner |
+|---|---|
+| First paint, before hydration | inline script |
+| Polyfill finishes loading | inline script (`load` on `#webmcp-polyfill`) |
+| Document unload / bfcache restore | inline script (`pagehide` / `pageshow`) |
+| Client-side navigation off and back onto `/` | `AuditToolLifecycle` component |
+
+`router.push()` never fires `pagehide`, so the inline script alone would leave
+`audit_site` registered on `/report`. The script publishes exactly one global,
+`window.__agentReadyAuditTool` (`{ register, unregister }`), which
+`bindAuditToolLifecycle()` — the landing page's `useEffect` body — drives from
+mount and unmount. While unregistered, a late polyfill `load` must not re-register.
 
 The polyfill URL and its SRI hash live in `src/lib/webmcp/polyfill.ts` and are
 shared with `/demo`. **Bumping the version requires recomputing the hash.**

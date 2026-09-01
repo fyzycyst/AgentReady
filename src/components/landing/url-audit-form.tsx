@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { AUDIT_SITE_TOOL } from "@/lib/webmcp/audit-site-tool";
 import type { WebMcpControlProps, WebMcpFormProps } from "@/types/webmcp";
 
@@ -19,6 +19,9 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
   const router = useRouter();
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | null>(null);
+  // `/report` audits on the server, so the navigation lasts as long as the
+  // audit. Without this the button would look inert for several seconds.
+  const [pending, startTransition] = useTransition();
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,7 +35,7 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
       return;
     }
     setError(null);
-    router.push(`/report?url=${encodeURIComponent(v)}`);
+    startTransition(() => router.push(`/report?url=${encodeURIComponent(v)}`));
   }
 
   return (
@@ -76,9 +79,13 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
         />
         <button
           type="submit"
-          className={`m-1.5 rounded-lg bg-signal px-5 font-semibold text-[#1a1305] hover:bg-[#ffc44f] active:translate-y-px transition ${compact ? "text-sm" : ""}`}
+          // `undefined` rather than `false`: the served HTML must be identical
+          // to the pre-transition markup an agent (and our own audit) reads.
+          disabled={pending || undefined}
+          aria-busy={pending || undefined}
+          className={`m-1.5 rounded-lg bg-signal px-5 font-semibold text-[#1a1305] hover:bg-[#ffc44f] active:translate-y-px transition disabled:opacity-70 ${compact ? "text-sm" : ""}`}
         >
-          Audit
+          {pending ? "Auditing…" : "Audit"}
         </button>
       </div>
       {error && (

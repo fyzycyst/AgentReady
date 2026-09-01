@@ -3,12 +3,16 @@
  *
  * The script is served as text, so nothing else in the build type-checks or
  * executes it. This runs the real source from
- * `@/lib/webmcp/audit-site-tool` against a stubbed document/window/fetch and
- * exercises what an agent would actually hit: registration, the polyfill
- * race, `execute()`'s return shape, and unregistration by abort.
+ * `@/lib/webmcp/audit-site-tool-script` against a stubbed document/window/fetch
+ * and exercises what an agent would actually hit: registration, the polyfill
+ * race, `execute()`'s return shape and its failure modes, and — the part the
+ * first round got wrong — that the tool is scoped to `/` across client-side
+ * navigation, driven through the same `bindAuditToolLifecycle` the landing
+ * page's effect uses.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AUDIT_SITE_TOOL, AUDIT_SITE_TOOL_SCRIPT } from "@/lib/webmcp/audit-site-tool";
+import { AUDIT_SITE_TOOL, AUDIT_TOOL_GLOBAL, bindAuditToolLifecycle } from "@/lib/webmcp/audit-site-tool";
+import { AUDIT_SITE_TOOL_SCRIPT } from "@/lib/webmcp/audit-site-tool-script";
 import { POLYFILL_SCRIPT_ID } from "@/lib/webmcp/polyfill";
 
 type Tool = {
@@ -23,13 +27,13 @@ type Tool = {
 function target() {
   const handlers = new Map<string, ((event?: unknown) => void)[]>();
   return {
-    addEventListener(type: string, handler: () => void) {
+    addEventListener(type: string, handler: (event?: unknown) => void) {
       const list = handlers.get(type) ?? [];
       list.push(handler);
       handlers.set(type, list);
     },
-    fire(type: string) {
-      for (const handler of handlers.get(type) ?? []) handler();
+    fire(type: string, event?: unknown) {
+      for (const handler of handlers.get(type) ?? []) handler(event);
     },
   };
 }
@@ -37,13 +41,25 @@ function target() {
 interface Harness {
   tools: Map<string, Tool>;
   registerTool: ReturnType<typeof vi.fn>;
-  polyfillScript: ReturnType<typeof target>;
   window: ReturnType<typeof target>;
   fetch: ReturnType<typeof vi.fn>;
+  /** What the polyfill actually does: install document.modelContext, then fire load. */
+  installPolyfill(): void;
+  /** Signal handed to `registerTool` on the nth (0-based) registration. */
+  signalAt(index: number): AbortSignal;
+}
+
+interface RunOptions {
+  modelContextAvailable: boolean;
+  response?: unknown;
+  /** Make `fetch` itself reject, e.g. a dropped request. */
+  fetchRejects?: unknown;
+  /** Make `response.json()` reject, e.g. a proxy HTML error page. */
+  jsonRejects?: boolean;
 }
 
 /** Install the globals the inline script touches, then run it. */
-function run(opts: { modelContextAvailable: boolean; response?: unknown }): Harness {
+function run(opts: RunOptions): Harness {
   const tools = new Map<string, Tool>();
   const registerTool = vi.fn(async (tool: Tool, options: { signal: AbortSignal }) => {
     if (options.signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -52,8 +68,16 @@ function run(opts: { modelContextAvailable: boolean; response?: unknown }): Harn
   });
 
   const polyfillScript = target();
-  const win = target();
-  const fetchMock = vi.fn(async () => ({ json: async () => opts.response }));
+  const win = target() as ReturnType<typeof target> & Record<string, unknown>;
+  const fetchMock = vi.fn(async () => {
+    if (opts.fetchRejects) throw opts.fetchRejects;
+    return {
+      json: async () => {
+        if (opts.jsonRejects) throw new SyntaxError("Unexpected token < in JSON at position 0");
+        return opts.response;
+      },
+    };
+  });
 
   const modelContext = { registerTool };
   const doc: Record<string, unknown> = {
@@ -68,11 +92,20 @@ function run(opts: { modelContextAvailable: boolean; response?: unknown }): Harn
   // The script is an IIFE; Function() evaluates it against the stubbed globals.
   new Function(AUDIT_SITE_TOOL_SCRIPT)();
 
-  // Late-arriving polyfill: the load handler is what makes registration happen.
-  if (!opts.modelContextAvailable) doc.modelContext = modelContext;
-
-  return { tools, registerTool, polyfillScript, window: win, fetch: fetchMock };
+  return {
+    tools,
+    registerTool,
+    window: win,
+    fetch: fetchMock,
+    installPolyfill() {
+      doc.modelContext = modelContext;
+      polyfillScript.fire("load");
+    },
+    signalAt: (index) => (registerTool.mock.calls[index] as [Tool, { signal: AbortSignal }])[1].signal,
+  };
 }
+
+const registered = (h: Harness) => vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
 
 const OK_REPORT = {
   ok: true,
@@ -101,6 +134,8 @@ const OK_REPORT = {
   ],
 };
 
+const GENERIC_ERROR = "The audit could not be completed.";
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -108,38 +143,101 @@ afterEach(() => {
 describe("audit_site inline registration", () => {
   it("registers the declared tool as soon as document.modelContext exists", async () => {
     const h = run({ modelContextAvailable: true });
-    await vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
+    await registered(h);
 
     const tool = h.tools.get("audit_site")!;
     expect(tool.description).toBe(AUDIT_SITE_TOOL.description);
     expect(tool.inputSchema).toEqual(AUDIT_SITE_TOOL.inputSchema);
     expect(tool.annotations).toEqual({ readOnlyHint: true });
-    expect(h.registerTool.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+    expect(h.signalAt(0)).toBeInstanceOf(AbortSignal);
   });
 
   it("waits for the polyfill's load event when modelContext is not there yet", async () => {
     const h = run({ modelContextAvailable: false });
     expect(h.registerTool).not.toHaveBeenCalled();
 
-    h.polyfillScript.fire("load");
-    await vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
+    h.installPolyfill();
+    await registered(h);
     expect(h.registerTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes exactly one namespaced global for the React tree to drive", () => {
+    const h = run({ modelContextAvailable: true });
+    const handle = (h.window as Record<string, unknown>)[AUDIT_TOOL_GLOBAL] as { register: unknown; unregister: unknown };
+    expect(Object.keys(handle).sort()).toEqual(["register", "unregister"]);
   });
 
   it("unregisters on pagehide by aborting the registration signal", async () => {
     const h = run({ modelContextAvailable: true });
-    await vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
+    await registered(h);
 
     h.window.fire("pagehide");
     expect(h.tools.has("audit_site")).toBe(false);
+    expect(h.signalAt(0).aborted).toBe(true);
   });
 
-  it("execute() POSTs the url and returns a compact plain value, not an MCP envelope", async () => {
-    const h = run({ modelContextAvailable: true, response: OK_REPORT });
-    await vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
+  it("re-registers when the document comes back from the bfcache", async () => {
+    const h = run({ modelContextAvailable: true });
+    await registered(h);
 
+    h.window.fire("pagehide");
+    expect(h.tools.has("audit_site")).toBe(false);
+
+    h.window.fire("pageshow", { persisted: true });
+    await registered(h);
+    expect(h.registerTool).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("audit_site is scoped to the landing page across client-side navigation", () => {
+  it("leaves on unmount and comes back on remount, with a fresh signal each time", async () => {
+    const h = run({ modelContextAvailable: true });
+    await registered(h);
+
+    // Mount on `/`: the inline script already registered, so this is a no-op.
+    const leaveLandingPage = bindAuditToolLifecycle();
+    expect(h.registerTool).toHaveBeenCalledTimes(1);
+    expect(h.tools.has("audit_site")).toBe(true);
+
+    // router.push("/report?url=…") — same document, so pagehide never fires.
+    leaveLandingPage();
+    expect(h.tools.has("audit_site")).toBe(false);
+    expect(h.signalAt(0).aborted).toBe(true);
+
+    // Back on `/`. The inline script does not re-execute; the component owns this.
+    bindAuditToolLifecycle();
+    await registered(h);
+    expect(h.registerTool).toHaveBeenCalledTimes(2);
+    expect(h.signalAt(1)).not.toBe(h.signalAt(0));
+    expect(h.signalAt(1).aborted).toBe(false);
+  });
+
+  it("does not let a late polyfill load resurrect the tool after the page is left", () => {
+    // The polyfill is still in flight when the visitor arrives and leaves again.
+    const h = run({ modelContextAvailable: false });
+    const leaveLandingPage = bindAuditToolLifecycle();
+    leaveLandingPage();
+
+    h.installPolyfill();
+    expect(h.registerTool).not.toHaveBeenCalled();
+    expect(h.tools.has("audit_site")).toBe(false);
+  });
+});
+
+describe("audit_site execute()", () => {
+  async function executeWith(opts: RunOptions, input: Record<string, unknown>, options: { signal?: AbortSignal } = {}) {
+    const h = run(opts);
+    await registered(h);
+    return { h, result: await h.tools.get("audit_site")!.execute(input, options) };
+  }
+
+  it("POSTs the url and returns a compact plain value, not an MCP envelope", async () => {
     const ac = new AbortController();
-    const out = await h.tools.get("audit_site")!.execute({ url: "example.com" }, { signal: ac.signal });
+    const { h, result } = await executeWith(
+      { modelContextAvailable: true, response: OK_REPORT },
+      { url: "example.com" },
+      { signal: ac.signal },
+    );
 
     const [url, init] = h.fetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/audit");
@@ -147,22 +245,44 @@ describe("audit_site inline registration", () => {
     expect(JSON.parse(String(init.body))).toEqual({ url: "example.com" });
     expect(init.signal).toBe(ac.signal);
 
-    expect(out).toEqual({
+    expect(result).toEqual({
       url: "https://example.com/",
       overall: 72,
       grade: "B",
       coverage: 1,
       topFinding: { id: "structure.jsonld.missing", severity: "high", title: "No structured data (JSON-LD)" },
     });
-    expect(out).not.toHaveProperty("content");
+    expect(result).not.toHaveProperty("content");
   });
 
-  it("execute() surfaces a blocked report as an error value rather than throwing", async () => {
-    const blocked = { ok: false, code: "robots-disallow", title: "This site asks agents not to read this page", message: "robots.txt disallows this path." };
-    const h = run({ modelContextAvailable: true, response: blocked });
-    await vi.waitFor(() => expect(h.tools.has("audit_site")).toBe(true));
+  it("surfaces a blocked report as an error value rather than throwing", async () => {
+    const blocked = {
+      ok: false,
+      code: "robots-disallow",
+      title: "This site asks agents not to read this page",
+      message: "robots.txt disallows this path.",
+    };
+    const { result } = await executeWith({ modelContextAvailable: true, response: blocked }, { url: "blocked.example" });
+    expect(result).toEqual({ error: blocked.message, url: "blocked.example" });
+  });
 
-    const out = await h.tools.get("audit_site")!.execute({ url: "blocked.example" }, {});
-    expect(out).toEqual({ error: blocked.message, url: "blocked.example" });
+  it("returns the compact error when the request never completes", async () => {
+    const { result } = await executeWith(
+      { modelContextAvailable: true, fetchRejects: new TypeError("Failed to fetch") },
+      { url: "example.com" },
+    );
+    expect(result).toEqual({ error: GENERIC_ERROR, url: "example.com" });
+  });
+
+  it("returns the compact error when the response is not JSON", async () => {
+    const { result } = await executeWith({ modelContextAvailable: true, jsonRejects: true }, { url: "example.com" });
+    expect(result).toEqual({ error: GENERIC_ERROR, url: "example.com" });
+  });
+
+  it("lets cancellation propagate instead of reporting it as an audit failure", async () => {
+    const abort = new DOMException("The operation was aborted.", "AbortError");
+    const h = run({ modelContextAvailable: true, fetchRejects: abort });
+    await registered(h);
+    await expect(h.tools.get("audit_site")!.execute({ url: "example.com" }, {})).rejects.toBe(abort);
   });
 });

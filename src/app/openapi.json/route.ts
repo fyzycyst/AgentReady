@@ -61,7 +61,8 @@ function document() {
         post: {
           operationId: "auditSite",
           summary: "Audit a URL and return the full report.",
-          description: "Rate limited to 12 requests per minute per client address; the response is never cached.",
+          description:
+            "Rate limiting is best-effort: roughly 12 requests/min per client address per warm instance, not a global guarantee. The response is never cached.",
           requestBody: {
             required: true,
             content: {

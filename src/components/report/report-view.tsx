@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { AgentPathStep, CheckResult } from "@/lib/audit/contract";
 import type { CategoryScore } from "@/lib/audit/scoring";
@@ -17,7 +16,12 @@ import { FindingCard } from "./finding-card";
 import { PanelRail } from "./panel-rail";
 import { topFindings } from "./prioritise";
 
-type Outcome = { url: string; kind: "done"; report: Report } | { url: string; kind: "error"; title: string; message: string };
+/** A finished audit, handed to the view by the server (`/report`) or fetched here. */
+export type InitialOutcome =
+  | { kind: "done"; report: Report }
+  | { kind: "error"; title: string; message: string };
+
+type Outcome = InitialOutcome & { url: string };
 type State = { phase: "idle" } | { phase: "loading" } | { phase: "done"; report: Report } | { phase: "error"; title: string; message: string };
 
 const STAGES = ["Checking robots.txt", "Fetching the page", "Looking for discovery files", "Reading structure", "Scoring"];
@@ -29,9 +33,13 @@ const STEPS: { id: AgentPathStep; label: string; question: string }[] = [
   { id: "act", label: "Act", question: "Can it complete the task — book, buy, submit?" },
 ];
 
-export function ReportView() {
-  const params = useSearchParams();
-  const url = params.get("url") ?? "";
+/**
+ * `initial` is the server-rendered audit for `?url=`; when it is present this
+ * view renders a finished report on the first paint and never fetches. The
+ * client fetch below is the fallback for a caller that mounts the view without
+ * a server-side result.
+ */
+export function ReportView({ url = "", initial }: { url?: string; initial?: InitialOutcome } = {}) {
   const cardHost = (() => {
     try {
       return new URL(url.includes("://") ? url : `https://${url}`).hostname;
@@ -42,17 +50,20 @@ export function ReportView() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [stage, setStage] = useState(0);
 
-  // Derived, not set in an effect: loading = we have a URL but no outcome for it yet.
+  // Derived, not set in an effect: loading = we have a URL but no outcome for
+  // it yet. A server-provided outcome wins outright, so a client navigation
+  // that swaps `initial` cannot be shadowed by stale state.
+  const resolved: Outcome | null = initial ? { url, ...initial } : outcome && outcome.url === url ? outcome : null;
   const state: State = !url
     ? { phase: "idle" }
-    : outcome && outcome.url === url
-      ? outcome.kind === "done"
-        ? { phase: "done", report: outcome.report }
-        : { phase: "error", title: outcome.title, message: outcome.message }
+    : resolved
+      ? resolved.kind === "done"
+        ? { phase: "done", report: resolved.report }
+        : { phase: "error", title: resolved.title, message: resolved.message }
       : { phase: "loading" };
 
   useEffect(() => {
-    if (!url) return;
+    if (!url || initial) return;
     let cancelled = false;
     const ticker = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 700);
     fetch("/api/audit", {
@@ -93,7 +104,7 @@ export function ReportView() {
       cancelled = true;
       clearInterval(ticker);
     };
-  }, [url]);
+  }, [url, initial]);
 
   return (
     <div className="flex-1 flex flex-col">

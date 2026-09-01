@@ -1,9 +1,11 @@
-import { AUDIT_SITE_TOOL_SCRIPT } from "@/lib/webmcp/audit-site-tool";
+import { AuditToolLifecycle } from "@/components/landing/audit-tool-lifecycle";
+import { AUDIT_SITE_TOOL_SCRIPT } from "@/lib/webmcp/audit-site-tool-script";
 import { POLYFILL_INTEGRITY, POLYFILL_SCRIPT_ID, POLYFILL_URL } from "@/lib/webmcp/polyfill";
 
 /**
- * The `audit_site` WebMCP tool on the landing page: the SRI-pinned polyfill
- * plus the inline registration from `@/lib/webmcp/audit-site-tool`.
+ * The `audit_site` WebMCP tool on the landing page: the SRI-pinned polyfill,
+ * the inline registration from `@/lib/webmcp/audit-site-tool-script`, and the
+ * client component that scopes it to this route.
  *
  * Both tags are plain elements rather than `next/script`, because both have to
  * be in the *served HTML*: `next/script`'s `afterInteractive` strategy injects
@@ -21,6 +23,7 @@ export function WebMcpAuditTool() {
         async
       />
       <script dangerouslySetInnerHTML={{ __html: AUDIT_SITE_TOOL_SCRIPT }} />
+      <AuditToolLifecycle />
     </>
   );
 }
