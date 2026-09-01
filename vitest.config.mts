@@ -3,7 +3,9 @@ import path from "node:path";
 
 export default defineConfig({
   test: {
-    include: ["tests/**/*.test.ts"],
+    // .tsx so the report can be smoke-rendered for the scored / not-observed /
+    // not-applicable states, which no single live URL can produce at once.
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     environment: "node",
   },
   resolve: {

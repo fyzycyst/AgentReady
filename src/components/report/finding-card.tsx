@@ -3,7 +3,7 @@
 import type { Finding, Severity } from "@/lib/audit/contract";
 import { CopyButton } from "./copy-button";
 
-const SEV: Record<Severity, { label: string; cls: string }> = {
+export const SEV: Record<Severity, { label: string; cls: string }> = {
   critical: { label: "critical", cls: "text-fail border-fail/40" },
   high: { label: "high", cls: "text-fail border-fail/40" },
   medium: { label: "medium", cls: "text-signal border-signal/40" },
@@ -15,7 +15,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
   const sev = SEV[finding.severity];
   return (
     <details className="card group open:border-line-strong">
-      <summary className="flex cursor-pointer items-start gap-3 p-4 list-none [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer items-start gap-3 rounded-[10px] p-4 list-none [&::-webkit-details-marker]:hidden">
         <span className={`mt-0.5 shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${sev.cls}`}>{sev.label}</span>
         <span className="flex-1 min-w-0">
           <span className="block font-medium">{finding.title}</span>
