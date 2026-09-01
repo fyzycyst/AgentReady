@@ -1,0 +1,17 @@
+# AgentReady
+
+> Audit any public URL for agent-readiness — WebMCP tools, structured data, discovery files, forms, and actionability.
+
+AgentReady reads a single HTML page (plus same-origin discovery files) and returns a 0–100 score with actionable fixes. It respects robots.txt, stores nothing, and highlights where AI agents get stuck compared to human visitors.
+
+## Key URLs
+
+- `/` — paste a URL and run an audit
+- `/demo` — A-grade WebMCP control (Le Petit Bistro reservations demo)
+- `/fixtures/soup` — intentionally broken “beautiful but broken” fixture (not indexed)
+
+## WebMCP
+
+This site demonstrates declarative (`toolname`, `tooldescription`, `toolparamdescription`) and imperative (`document.modelContext.registerTool`) WebMCP on `/demo`.
+
+Spec: https://webmachinelearning.github.io/webmcp
