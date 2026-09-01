@@ -22,6 +22,11 @@ const PAGINATION_MARKER = /pagination|pager/i;
 const JS_HEURISTIC_DETAIL =
   "The rendered DOM was not tested; this assessment is heuristic based on the raw HTML only.";
 
+const JS_CAP_DETAIL = {
+  likely: " Overall score is capped at 60 when two JS-dependence heuristics fire.",
+  required: " Overall score is capped at 35 when three or more JS-dependence heuristics fire.",
+} as const;
+
 function wordCount(text: string): number {
   const t = text.trim();
   return t ? t.split(/\s+/).length : 0;
@@ -244,7 +249,7 @@ function scoreJsDependence(
       id: "access.js.likely",
       severity: "medium",
       title: "Page likely depends on JavaScript",
-      detail: JS_HEURISTIC_DETAIL,
+      detail: JS_HEURISTIC_DETAIL + JS_CAP_DETAIL.likely,
       evidence: [{ source: "raw-html", summary: "2 JS-dependence heuristics fired" }],
       remediation: {
         summary: "Pre-render primary content in HTML for agent and no-JS clients.",
@@ -261,7 +266,7 @@ function scoreJsDependence(
     id: "access.js.required",
     severity: "high",
     title: "Content appears to require JavaScript",
-    detail: JS_HEURISTIC_DETAIL,
+    detail: JS_HEURISTIC_DETAIL + JS_CAP_DETAIL.required,
     evidence: [{ source: "raw-html", summary: `${count} JS-dependence heuristics fired` }],
     remediation: {
       summary: "Emit primary content in HTML or pre-render this route.",
@@ -359,7 +364,10 @@ export const accessRenderabilityCheck: AuditCheck = {
 
     points += scorePagination(dom, findings);
 
-    const score = Math.max(0, Math.min(100, points));
+    let score = Math.max(0, Math.min(100, points));
+    if (js.count >= 3) score = Math.min(score, 35);
+    else if (js.count === 2) score = Math.min(score, 60);
+
     return {
       checkId: "access-renderability",
       category: "access-renderability",

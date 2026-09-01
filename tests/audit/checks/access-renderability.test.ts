@@ -11,11 +11,12 @@ describe("access-renderability", () => {
     expect(r.findings.map((f) => f.id)).toContain("access.js.static");
   });
 
-  it("scores div-soup-spa.html with access.js.required and low confidence", async () => {
+  it("scores div-soup-spa.html at 35 with access.js.required and low confidence", async () => {
     const r = await accessRenderabilityCheck.run(buildContext(fixture("div-soup-spa.html")));
-    expect(r.score).toBe(65);
+    expect(r.score).toBe(35);
     expect(r.confidence).toBe("low");
     expect(r.findings.map((f) => f.id)).toContain("access.js.required");
+    expect(r.summary).toMatch(/walled|hidden behind JavaScript/i);
   });
 
   it("flags CAPTCHA embedded in a login form", async () => {
