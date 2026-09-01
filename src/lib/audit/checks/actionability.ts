@@ -29,6 +29,9 @@ function soupKind(el: ElementView): "handlers" | "role-only" | "dead-links" | "f
   ) {
     return "role-only";
   }
+  if (el.tag === "a" && el.attr("href") === undefined && el.attr("onclick") === undefined && !el.attr("role") && !el.text().trim()) {
+    return undefined;
+  }
   if (el.tag === "a" && !isUsableHref(el.attr("href"))) return "dead-links";
   if ((el.tag === "div" || el.tag === "span") && el.attr("tabindex") !== undefined && !el.attr("role")) return "focusable";
   return undefined;
@@ -44,12 +47,15 @@ function primaryLabel(el: ElementView): string {
   return excerpt(el.text() || el.tag, 80);
 }
 
-function soupSnippet(kind: "handlers" | "role-only" | "dead-links"): string {
+function soupSnippet(kind: "handlers" | "role-only" | "dead-links" | "focusable"): string {
   if (kind === "handlers") {
     return "<!-- before -->\n<div class=\"btn\" onclick=\"openCart()\">Cart</div>\n<!-- after -->\n<button type=\"button\" class=\"btn\" onclick=\"openCart()\">Cart</button>";
   }
   if (kind === "dead-links") {
     return "<!-- Use a button for an in-page action -->\n<button type=\"button\">Open cart</button>\n<!-- Or give navigation a real destination -->\n<a href=\"/cart\">View cart</a>";
+  }
+  if (kind === "focusable") {
+    return "<!-- before -->\n<div tabindex=\"0\">Details</div>\n<!-- after -->\n<button type=\"button\">Details</button>\n<!-- Or add role=\"button\" with keyboard handling -->";
   }
   return "<!-- before -->\n<span role=\"button\">Checkout</span>\n<!-- after -->\n<button type=\"button\">Checkout</button>";
 }
@@ -124,7 +130,7 @@ export const actionabilityCheck: AuditCheck = {
         remediation: {
           summary: "Use a native link, button, or form for the primary action.",
           rationale: "Native controls are directly targetable by agents and keyboard-operable for people.",
-          snippet: soupSnippet(soupPrimary.kind === "focusable" ? "handlers" : soupPrimary.kind),
+          snippet: soupSnippet(soupPrimary.kind),
           language: "html",
         },
       });
@@ -135,7 +141,8 @@ export const actionabilityCheck: AuditCheck = {
     const handlers = soup.filter((item) => item.kind === "handlers");
     const deadLinks = soup.filter((item) => item.kind === "dead-links");
     const roleOnly = soup.filter((item) => item.kind === "role-only");
-    const addSoupFinding = (kind: "handlers" | "dead-links" | "role-only", items: typeof soup, severity: "high" | "medium" | "low", title: string, detail: string) => {
+    const focusable = soup.filter((item) => item.kind === "focusable");
+    const addSoupFinding = (kind: "handlers" | "dead-links" | "role-only" | "focusable", items: typeof soup, severity: "high" | "medium" | "low", title: string, detail: string) => {
       if (items.length === 0) return;
       findings.push({
         id: `actions.soup.${kind}`,
@@ -154,6 +161,7 @@ export const actionabilityCheck: AuditCheck = {
     addSoupFinding("handlers", handlers, handlers.length >= 3 ? "high" : "medium", `${handlers.length} clickable elements are not links or buttons`, "Click handlers alone are not reliable action targets for agents.");
     addSoupFinding("dead-links", deadLinks, "medium", `${deadLinks.length} links have no destination`, "These anchors do not expose a usable navigation target.");
     addSoupFinding("role-only", roleOnly, "low", `${roleOnly.length} controls use roles without native elements`, "Roles describe intent but do not provide the behavior of native controls.");
+    addSoupFinding("focusable", focusable, "low", `${focusable.length} focusable elements have no role`, "A tabindex without a role tells agents something is interactive but not what it is.");
 
     if (soup.length === 0) {
       findings.push({

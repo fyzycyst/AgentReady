@@ -33,4 +33,19 @@ describe("actionability", () => {
     expect(result.score).toBeNull();
     expect(result.findings.map((finding) => finding.id)).toContain("actions.none");
   });
+
+  it("does not mistake empty legacy anchor targets for dead links", async () => {
+    const result = await actionabilityCheck.run(buildContext('<a id="top"></a><a href="/x">x</a>'));
+
+    expect(result.score).toBe(100);
+    expect(result.findings.map((finding) => finding.id)).not.toContain("actions.soup.dead-links");
+  });
+
+  it("explains focusable elements without roles", async () => {
+    const result = await actionabilityCheck.run(buildContext('<a href="/x">x</a><div tabindex="0">Details</div>'));
+
+    const finding = result.findings.find((item) => item.id === "actions.soup.focusable");
+    expect(finding?.severity).toBe("low");
+    expect(finding?.remediation?.snippet).toContain('<button type="button">Details</button>');
+  });
 });
