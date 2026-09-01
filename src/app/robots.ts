@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { absoluteSiteUrl } from "@/lib/site-origin";
+import { discoverySiteUrl } from "@/lib/site-origin";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: absoluteSiteUrl("/sitemap.xml"),
+    sitemap: discoverySiteUrl("/sitemap.xml"),
   };
 }
