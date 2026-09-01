@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Northwind Bikes — Repairs, rentals and parts in Huntsville</title>
+  <meta name="description" content="Book a repair, rent a bike, or order parts from Northwind Bikes. Same-day service on most repairs.">
+  <link rel="canonical" href="https://northwind.example/">
+  <meta property="og:title" content="Northwind Bikes">
+  <meta property="og:description" content="Repairs, rentals and parts in Huntsville.">
+  <meta property="og:image" content="https://northwind.example/og.png">
+  <link rel="alternate" type="application/rss+xml" title="Shop news" href="/feed.xml">
+  <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BikeStore",
+    "name": "Northwind Bikes",
+    "url": "https://northwind.example/",
+    "telephone": "+1-256-555-0100",
+    "address": { "@type": "PostalAddress", "addressLocality": "Huntsville", "addressRegion": "AL" },
+    "potentialAction": { "@type": "ReserveAction", "target": "https://northwind.example/book" }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">Northwind Bikes</a>
+    <nav aria-label="Primary">
+      <a href="/repairs">Repairs</a>
+      <a href="/rentals">Rentals</a>
+      <a href="/parts">Parts</a>
+      <a href="/contact">Contact</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Bike repairs, rentals and parts</h1>
+    <p>Same-day service on most repairs. Book online or call.</p>
+
+    <section>
+      <h2>Book a repair</h2>
+      <form action="/book" method="post" toolname="book_repair" tooldescription="Book a bicycle repair appointment">
+        <label for="name">Your name</label>
+        <input id="name" name="name" type="text" autocomplete="name" required toolparamdescription="Customer full name">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+        <label for="date">Preferred date</label>
+        <input id="date" name="date" type="date" required>
+        <label for="issue">What's wrong?</label>
+        <textarea id="issue" name="issue" required></textarea>
+        <button type="submit">Book repair</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Rent a bike</h2>
+      <h3>Daily rates</h3>
+      <ul>
+        <li><a href="/rentals/city">City bike — $25/day</a></li>
+        <li><a href="/rentals/mountain">Mountain bike — $40/day</a></li>
+      </ul>
+    </section>
+  </main>
+  <footer>
+    <p>© Northwind Bikes · <a href="/privacy">Privacy</a></p>
+  </footer>
+</body>
+</html>

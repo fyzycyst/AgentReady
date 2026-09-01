@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* ---------- tokens: graphite instrument panel ---------- */
+:root {
+  --bg: #0e1116;
+  --bg-elev: #131820;
+  --surface: #161b23;
+  --surface-2: #1c2330;
+  --line: #262d38;
+  --line-strong: #364050;
+  --text: #e8e6e1;
+  --text-muted: #8b93a1;
+  --text-faint: #5c6573;
+  --signal: #f2b33d;
+  --signal-dim: #a67a22;
+  --pass: #5dd39e;
+  --warn: #f2b33d;
+  --fail: #f0665e;
+  --info: #7fa7ff;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-signal: var(--signal);
+  --color-signal-dim: var(--signal-dim);
+  --color-pass: var(--pass);
+  --color-warn: var(--warn);
+  --color-fail: var(--fail);
+  --color-info: var(--info);
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+  background: var(--bg);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -200px, rgba(242, 179, 61, 0.07), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(242, 179, 61, 0.35);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Display face: tight, slightly condensed, used only for the hero and big numbers. */
+.display {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-variation-settings: "wdth" 90, "opsz" 96;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+.eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fine grid texture for the instrument panel surfaces. */
+.panel {
+  background-color: var(--surface);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+pre.snippet {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  background: #0a0d12;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+@keyframes lamp {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.lamp-scan {
+  animation: lamp 1.2s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lamp-scan, .rise { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}

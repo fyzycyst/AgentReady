@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Le Petit Bistro — Reservations</title>
+  <meta name="description" content="Reserve a table at Le Petit Bistro.">
+  <script src="https://unpkg.com/@mcp-b/webmcp-polyfill@5/dist/index.iife.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Reserve a table</h1>
+    <form id="reserve" action="/reserve" method="post"
+          toolname="reserve_table"
+          tooldescription="Reserve a table at Le Petit Bistro for a given date, time and party size"
+          toolautosubmit>
+      <label for="date">Date</label>
+      <input id="date" name="date" type="date" required toolparamdescription="Reservation date (YYYY-MM-DD)">
+      <label for="time">Time</label>
+      <input id="time" name="time" type="time" required toolparamdescription="Reservation time, 24h">
+      <label for="party">Party size</label>
+      <input id="party" name="party" type="number" min="1" max="12" required toolparamdescription="Number of guests">
+      <button type="submit">Reserve</button>
+    </form>
+    <script>
+      document.modelContext.registerTool({
+        name: "check_availability",
+        description: "Check whether a table is available",
+        inputSchema: { type: "object", properties: { date: { type: "string" }, party: { type: "integer" } }, required: ["date"] },
+        async execute({ date, party }) {
+          const r = await fetch(`/api/availability?date=${date}&party=${party ?? 2}`);
+          return await r.json();
+        }
+      });
+    </script>
+  </main>
+</body>
+</html>
