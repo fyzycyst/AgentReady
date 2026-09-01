@@ -6,7 +6,7 @@
  *   name attribute ............................... 15
  *   Specific input type .......................... 20
  *   autocomplete ................................. 15
- *   Submit affordance ............................ 10
+ *   Submit affordance (per-control ownership) .... 10
  */
 import type { AuditCheck, AuditContext, CheckResult, ElementView, Finding, HtmlQuery } from "../contract";
 
@@ -42,6 +42,22 @@ const AUTOCOMPLETE_RULES: readonly AutocompleteRule[] = [
   { pattern: /password|passwd/i, tokens: ["current-password", "new-password"] },
 ];
 
+const VALID_AUTOCOMPLETE = new Set(
+  AUTOCOMPLETE_RULES.flatMap((r) => r.tokens).concat(["off", "on"]),
+);
+
+/** Escape page-derived values for HTML attribute or text insertion in snippets. */
+export function escapeAttr(value: string): string {
+  return value
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function collectControls(dom: HtmlQuery): ElementView[] {
   const controls: ElementView[] = [];
   for (const input of dom.all("input")) {
@@ -52,10 +68,14 @@ function collectControls(dom: HtmlQuery): ElementView[] {
   return controls;
 }
 
+function elementById(dom: HtmlQuery, id: string): ElementView | undefined {
+  return dom.all("[id]").find((el) => el.attr("id") === id);
+}
+
 function labelForControl(dom: HtmlQuery, control: ElementView): ElementView | undefined {
   const id = control.attr("id");
   if (id) {
-    const byFor = dom.first(`label[for="${id}"]`);
+    const byFor = dom.all("label").find((label) => label.attr("for") === id);
     if (byFor) return byFor;
   }
   return dom.all("label").find((label) => label.all("input, textarea, select").some((c) => c.path === control.path));
@@ -73,7 +93,7 @@ function accessibleName(dom: HtmlQuery, control: ElementView): string | null {
   if (labelledBy) {
     const text = labelledBy
       .split(/\s+/)
-      .map((token) => dom.first(`#${token}`)?.text().trim() ?? "")
+      .map((token) => elementById(dom, token)?.text().trim() ?? "")
       .filter(Boolean)
       .join(" ");
     if (text) return text;
@@ -115,6 +135,14 @@ function expectedAutocomplete(control: ElementView, dom: HtmlQuery): readonly st
   return null;
 }
 
+function owningForm(dom: HtmlQuery, control: ElementView): ElementView | undefined {
+  const formId = control.attr("form");
+  if (formId) {
+    return dom.all("form").find((form) => form.attr("id") === formId);
+  }
+  return dom.all("form").find((form) => form.all("input, textarea, select").some((c) => c.path === control.path));
+}
+
 function formHasSubmit(form: ElementView): boolean {
   for (const btn of form.all("button")) {
     const type = (btn.attr("type") ?? "submit").toLowerCase();
@@ -126,28 +154,56 @@ function formHasSubmit(form: ElementView): boolean {
   return false;
 }
 
+function isSubmittable(dom: HtmlQuery, control: ElementView): boolean {
+  const form = owningForm(dom, control);
+  return !!form && formHasSubmit(form);
+}
+
+function snippetAutocomplete(control: ElementView, dom: HtmlQuery): string {
+  const raw = control.attr("autocomplete")?.trim().toLowerCase() ?? "";
+  if (raw && raw !== "off" && VALID_AUTOCOMPLETE.has(raw)) return raw;
+  return expectedAutocomplete(control, dom)?.[0] ?? "";
+}
+
 function remediationSnippet(control: ElementView, dom: HtmlQuery): string {
-  const id = control.attr("id") ?? control.attr("name") ?? "field";
-  const name = control.attr("name") ?? id;
-  const type = control.tag === "input" ? (control.attr("type") ?? "text") : control.tag === "textarea" ? "textarea" : "select";
+  const rawId = control.attr("id") ?? control.attr("name") ?? "field";
+  const id = escapeAttr(rawId);
+  const name = escapeAttr(control.attr("name") ?? rawId);
   const expectedType = expectedInputType(control, dom);
-  const resolvedType = expectedType ?? (type === "textarea" || type === "select" ? type : "text");
-  const expectedTokens = expectedAutocomplete(control, dom);
-  const autocomplete = control.attr("autocomplete") ?? expectedTokens?.[0] ?? "";
-  const label =
+  const autocomplete = snippetAutocomplete(control, dom);
+  const label = escapeAttr(
     labelTextForMatching(dom, control) ||
-    control.attr("placeholder")?.trim() ||
-    control.attr("aria-label")?.trim() ||
-    id;
+      control.attr("placeholder")?.trim() ||
+      control.attr("aria-label")?.trim() ||
+      rawId,
+  );
   const required = control.attr("required") !== undefined ? " required" : "";
-  const autocompleteAttr = autocomplete && autocomplete !== "off" ? ` autocomplete="${autocomplete}"` : "";
-  const tag =
-    control.tag === "textarea"
-      ? `<textarea id="${id}" name="${name}"${autocompleteAttr}${required}></textarea>`
-      : control.tag === "select"
-        ? `<select id="${id}" name="${name}"${autocompleteAttr}${required}></select>`
-        : `<input id="${id}" name="${name}" type="${resolvedType}"${autocompleteAttr}${required}>`;
-  return `<label for="${id}">${label}</label>\n${tag}`;
+  const autocompleteAttr = autocomplete ? ` autocomplete="${escapeAttr(autocomplete)}"` : "";
+
+  if (control.tag === "textarea") {
+    const body = escapeAttr(control.text());
+    return `<label for="${id}">${label}</label>\n<textarea id="${id}" name="${name}"${autocompleteAttr}${required}>${body}</textarea>`;
+  }
+
+  if (control.tag === "select") {
+    const options = control.all("option");
+    const optionHtml =
+      options.length > 0
+        ? options
+            .map((opt) => {
+              const val = escapeAttr(opt.attr("value") ?? opt.text());
+              const text = escapeAttr(opt.text());
+              const selected = opt.attr("selected") !== undefined ? " selected" : "";
+              return `  <option value="${val}"${selected}>${text}</option>`;
+            })
+            .join("\n")
+        : "  <!-- options -->";
+    return `<label for="${id}">${label}</label>\n<select id="${id}" name="${name}"${autocompleteAttr}${required}>\n${optionHtml}\n</select>`;
+  }
+
+  const actualType = (control.attr("type") ?? "text").toLowerCase();
+  const resolvedType = escapeAttr(expectedType ?? actualType);
+  return `<label for="${id}">${label}</label>\n<input id="${id}" name="${name}" type="${resolvedType}"${autocompleteAttr}${required}>`;
 }
 
 export const formSemanticsCheck: AuditCheck = {
@@ -358,15 +414,18 @@ export const formSemanticsCheck: AuditCheck = {
       });
     }
 
-    // ---- Submit affordance (10)
-    const forms = dom.all("form");
-    if (forms.length === 0) {
+    // ---- Submit affordance (10) — per-control ownership
+    const submittable = controls.filter((c) => isSubmittable(dom, c));
+    const orphanControls = controls.filter((c) => !owningForm(dom, c));
+    points += 10 * (submittable.length / controls.length);
+
+    if (orphanControls.length > 0) {
       findings.push({
         id: "forms.no-form-element",
         severity: "high",
         title: "Controls outside a <form>",
         detail: "inputs outside a <form> cannot be submitted by an agent without executing scripts",
-        evidence: controls.slice(0, 3).map((c) => ({ source: "raw-html" as const, summary: c.path, path: c.path })),
+        evidence: orphanControls.slice(0, 3).map((c) => ({ source: "raw-html" as const, summary: c.path, path: c.path })),
         remediation: {
           summary: "Wrap controls in a <form> with an explicit submit control.",
           rationale: "Agents submit forms via standard HTML — not div onclick handlers.",
@@ -374,19 +433,38 @@ export const formSemanticsCheck: AuditCheck = {
           language: "html",
         },
       });
+    }
+
+    if (submittable.length < controls.length) {
+      const sample = controls.find((c) => !isSubmittable(dom, c)) ?? controls[0];
+      findings.push({
+        id: "forms.submit.missing",
+        severity: "medium",
+        title: "Missing submit affordance",
+        detail: `${controls.length - submittable.length} control${controls.length - submittable.length > 1 ? "s are" : " is"} not inside a form with a submit button — an agent cannot send the values.`,
+        evidence: controls
+          .filter((c) => !isSubmittable(dom, c))
+          .slice(0, 3)
+          .map((c) => ({ source: "raw-html" as const, summary: c.path, path: c.path })),
+        remediation: {
+          summary: "Add a submit button inside the owning form.",
+          rationale: "Agents need a standard submit control to complete form actions.",
+          snippet:
+            owningForm(dom, sample) !== undefined
+              ? remediationSnippet(sample, dom) + '\n<button type="submit">Submit</button>'
+              : `<form action="/submit" method="post">\n${remediationSnippet(sample, dom)}\n  <button type="submit">Submit</button>\n</form>`,
+          language: "html",
+        },
+      });
     } else {
-      const withSubmit = forms.filter(formHasSubmit);
-      points += 10 * (withSubmit.length / forms.length);
-      if (withSubmit.length === forms.length) {
-        findings.push({
-          id: "forms.submit.ok",
-          severity: "info",
-          positive: true,
-          title: "Forms have submit affordances",
-          detail: `${forms.length} form${forms.length > 1 ? "s" : ""} with a submit button or input.`,
-          evidence: [{ source: "raw-html", summary: `${withSubmit.length}/${forms.length} forms with submit` }],
-        });
-      }
+      findings.push({
+        id: "forms.submit.ok",
+        severity: "info",
+        positive: true,
+        title: "All controls are submittable",
+        detail: `Every control is inside a form with a submit button or input.`,
+        evidence: [{ source: "raw-html", summary: `${submittable.length}/${controls.length} submittable` }],
+      });
     }
 
     // ---- Extra informational findings
@@ -412,7 +490,7 @@ export const formSemanticsCheck: AuditCheck = {
       });
     }
 
-    const score = Math.max(0, Math.min(100, Math.round(points * 10) / 10));
+    const score = Math.max(0, Math.min(100, Math.round(points)));
     return {
       checkId: "form-semantics",
       category: "form-semantics",
