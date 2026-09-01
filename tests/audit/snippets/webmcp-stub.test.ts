@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createHtmlQuery } from "@/lib/acquisition/html-query";
-import { generateWebMcpStub, genericStubSnippets } from "@/lib/audit/snippets/webmcp-stub";
+import { POLYFILL_SCRIPT_TAG, generateWebMcpStub, genericStubSnippets } from "@/lib/audit/snippets/webmcp-stub";
 import { fixture } from "../../helpers/context";
 
 const PAGE = "https://northwind.example/";
@@ -192,6 +192,28 @@ describe("generateWebMcpStub", () => {
     expect(selector).toBe("form#a  alert(1)  b");
     expect(selector).not.toContain('"');
     expect(selector).not.toContain("\\");
+  });
+});
+
+describe("POLYFILL_SCRIPT_TAG", () => {
+  // The version and the hash are one unit: bumping the polyfill without
+  // recomputing sha384 must fail here rather than at a visitor's browser.
+  it("pins the polyfill by version and by Subresource Integrity", () => {
+    expect(POLYFILL_SCRIPT_TAG).toBe(
+      '<script src="https://unpkg.com/@mcp-b/webmcp-polyfill@5.1.0/dist/index.iife.js" ' +
+        'integrity="sha384-ZLqD1afbu2b2LJVDDqBf95wR/DGWh5FT1bx6E2S+4uMPdMOc8QGIIfw2gBWLKIB2" ' +
+        'crossorigin="anonymous"></script>',
+    );
+  });
+
+  it("carries the integrity attributes into every snippet that recommends the polyfill", () => {
+    const fromForm = generateWebMcpStub(dom(fixture("agent-ready.html")), PAGE)!.imperative;
+    const { imperative: generic } = genericStubSnippets(PAGE);
+    for (const snippet of [fromForm, generic]) {
+      expect(snippet).toContain(POLYFILL_SCRIPT_TAG);
+      expect(snippet).toContain('integrity="sha384-');
+      expect(snippet).toContain('crossorigin="anonymous"');
+    }
   });
 });
 

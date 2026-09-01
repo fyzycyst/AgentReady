@@ -24,9 +24,18 @@
 import type { ElementView, HtmlQuery } from "../contract";
 import { escapeAttr } from "../escape";
 
-/** Verified 2026-09-01 (webmcp-facts §3). Pinned: the IIFE build is exact-version. */
+/**
+ * Verified 2026-09-01 (webmcp-facts §3). Pinned: the IIFE build is
+ * exact-version, and the Subresource Integrity hash pins the bytes — we are
+ * telling sites to load third-party code from a CDN, so it carries `integrity`
+ * and `crossorigin`. sha384 computed over the 24 379-byte 5.1.0 IIFE build,
+ * independently three times (coordinator, Composer seat, this seat).
+ * Bumping the version REQUIRES recomputing the hash.
+ */
 export const POLYFILL_SCRIPT_TAG =
-  '<script src="https://unpkg.com/@mcp-b/webmcp-polyfill@5.1.0/dist/index.iife.js"></script>';
+  '<script src="https://unpkg.com/@mcp-b/webmcp-polyfill@5.1.0/dist/index.iife.js" ' +
+  'integrity="sha384-ZLqD1afbu2b2LJVDDqBf95wR/DGWh5FT1bx6E2S+4uMPdMOc8QGIIfw2gBWLKIB2" ' +
+  'crossorigin="anonymous"></script>';
 
 export const POLYFILL_COMMENT = "// Until Chrome ships WebMCP by default, include the polyfill:";
 
