@@ -32,6 +32,11 @@ function scoreColor(score: number | null): string {
   return score >= 75 ? COLORS.mint : score >= 40 ? COLORS.amber : COLORS.coral;
 }
 
+export function opportunityLabel(overall: number | null, opportunity: number | null): string | null {
+  if (overall === null || opportunity === null || opportunity <= overall) return null;
+  return `+${opportunity - overall} WITH WEBMCP → ${opportunity}`;
+}
+
 function lamp(label: string, score: ScoreSummary, step: "find" | "understand" | "act") {
   const state = LAMP[stepState(score.categories.filter((category) => category.step === step))];
   const color = state.word === "clear" ? COLORS.mint : state.word === "friction" ? COLORS.amber : state.word === "blocked" ? COLORS.coral : COLORS.faint;
@@ -49,6 +54,7 @@ function scoredCard(report: Extract<Report, { ok: true }>) {
   const { score } = report;
   const overall = score.overall;
   const opportunity = score.opportunity;
+  const opportunityText = opportunityLabel(overall, opportunity);
   return node(
     "div",
     { width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: "52px 64px", backgroundColor: COLORS.bg, color: COLORS.text },
@@ -69,7 +75,11 @@ function scoredCard(report: Extract<Report, { ok: true }>) {
       ]),
       node("div", { display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 22, borderTop: `1px solid ${COLORS.line}` }, [
         node("span", { color: COLORS.muted, fontSize: 18, fontFamily: "monospace" }, `COVERAGE ${Math.round(score.coverage * 100)}%`),
-        opportunity !== null ? node("span", { color: COLORS.amber, fontSize: 20, fontFamily: "monospace" }, `+${opportunity} IF YOU ADD WEBMCP`) : node("span", { color: COLORS.faint, fontSize: 18, fontFamily: "monospace" }, "AGENT-READINESS REPORT"),
+        opportunityText
+          ? node("span", { color: COLORS.amber, fontSize: 20, fontFamily: "monospace" }, opportunityText)
+          : overall === null
+            ? node("span", { color: COLORS.faint, fontSize: 18, fontFamily: "monospace" }, "AGENT-READINESS REPORT")
+            : null,
       ]),
     ],
   );

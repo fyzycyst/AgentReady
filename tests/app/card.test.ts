@@ -9,7 +9,7 @@ const { runAudit } = vi.hoisted(() => ({ runAudit: vi.fn() }));
 
 vi.mock("@/lib/audit/orchestrator", () => ({ runAudit }));
 
-import { GET } from "@/app/api/card/route";
+import { GET, opportunityLabel } from "@/app/api/card/route";
 
 function scoredReport(): AuditReport {
   const results: CheckResult[] = CATEGORIES.map((category) => ({
@@ -28,7 +28,7 @@ function scoredReport(): AuditReport {
     finalUrl: "https://example.com/",
     fetchedAt: "2026-09-01T12:00:00.000Z",
     status: 200,
-    score: summarize(results),
+    score: { ...summarize(results), overall: 60, grade: "C", opportunity: 67 },
     results,
     acquisition: { robotsAllowed: true, renderedDom: "skipped", notes: [], truncated: false, sidecarsChecked: 0, sidecarsUnobserved: 0 },
     durationMs: 100,
@@ -69,6 +69,11 @@ describe("GET /api/card", () => {
     expect(response.headers.get("content-type")).toContain("image/png");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(1_000);
+  });
+
+  it("labels the WebMCP opportunity as a gain and destination", () => {
+    expect(opportunityLabel(60, 67)).toBe("+7 WITH WEBMCP → 67");
+    expect(opportunityLabel(67, 67)).toBeNull();
   });
 
   it("renders a blocked audit as a PNG", async () => {
