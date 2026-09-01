@@ -9,6 +9,7 @@ import { machineReadableStructureCheck } from "./machine-readable-structure";
 import { accessRenderabilityCheck } from "./access-renderability";
 import { formSemanticsCheck } from "./form-semantics";
 import { actionabilityCheck } from "./actionability";
+import { webmcpCapabilityCheck } from "./webmcp-capability";
 
 export const CHECKS: readonly AuditCheck[] = [
   agentDiscoveryCheck,
@@ -16,4 +17,5 @@ export const CHECKS: readonly AuditCheck[] = [
   accessRenderabilityCheck,
   formSemanticsCheck,
   actionabilityCheck,
+  webmcpCapabilityCheck,
 ];

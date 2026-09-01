@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Cascade Coffee — Order ahead</title>
+  <meta name="description" content="Order coffee ahead for pickup.">
+</head>
+<body>
+  <main>
+    <h1>Order ahead</h1>
+    <form id="order" action="/order" method="post">
+      <label for="drink">Drink</label>
+      <input id="drink" name="drink" type="text" required>
+      <label for="pickup">Pickup time</label>
+      <input id="pickup" name="pickup" type="time" required>
+      <button type="submit">Place order</button>
+    </form>
+    <script>
+      navigator.modelContext.registerTool({
+        name: "place_order",
+        description: "Place a coffee order for pickup",
+        async execute({ drink }) {
+          return `Ordered ${drink}`;
+        }
+      });
+    </script>
+  </main>
+</body>
+</html>
