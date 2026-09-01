@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SAFE_URLS } from "@/lib/safe-urls";
+import { PanelRail } from "./panel-rail";
 
 export function BlockedState({
   title,
@@ -8,6 +9,7 @@ export function BlockedState({
   status,
   evidence,
   code,
+  fetchedAt,
 }: {
   title: string;
   message: string;
@@ -15,14 +17,17 @@ export function BlockedState({
   status?: number;
   evidence?: string;
   code?: string;
+  /** Absent for client-side failures, where no audit ever ran and there is no server timestamp to show. */
+  fetchedAt?: string;
 }) {
   const isSiteSide = code === "http-error" || code === "robots-disallow";
   return (
     <section className="panel p-8 md:p-12 rise">
+      <PanelRail fetchedAt={fetchedAt} />
       <p className="eyebrow">{isSiteSide ? "No score · site declined" : "No score"}</p>
-      <h1 className="display mt-3 text-3xl md:text-5xl font-semibold max-w-3xl">{title}</h1>
+      <h1 className="display mt-3 text-3xl md:text-5xl font-semibold max-w-3xl wrap-anywhere">{title}</h1>
       <p className="mt-4 max-w-2xl text-muted">{message}</p>
-      <p className="mt-4 font-mono text-xs text-faint break-all">
+      <p className="mt-4 font-mono text-xs text-faint wrap-anywhere">
         {requestedUrl}
         {status ? ` · HTTP ${status}` : ""}
       </p>

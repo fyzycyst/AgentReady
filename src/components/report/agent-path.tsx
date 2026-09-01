@@ -6,9 +6,10 @@ const STEPS: { id: "find" | "understand" | "act"; label: string }[] = [
   { id: "act", label: "Act" },
 ];
 
-type Lamp = "pass" | "warn" | "fail" | "off";
+export type Lamp = "pass" | "warn" | "fail" | "off";
 
-function stepState(cats: readonly CategoryScore[]): Lamp {
+/** Weighted state of one Find/Understand/Act step. Shared so the path and the group headers can never disagree. */
+export function stepState(cats: readonly CategoryScore[]): Lamp {
   const observed = cats.filter((c) => c.applicable && c.score !== null) as (CategoryScore & { score: number })[];
   if (observed.length === 0) return "off";
   const w = observed.reduce((s, c) => s + c.weight, 0);
@@ -16,7 +17,7 @@ function stepState(cats: readonly CategoryScore[]): Lamp {
   return mean >= 75 ? "pass" : mean >= 40 ? "warn" : "fail";
 }
 
-const LAMP: Record<Lamp, { dot: string; text: string; word: string }> = {
+export const LAMP: Record<Lamp, { dot: string; text: string; word: string }> = {
   pass: { dot: "bg-pass shadow-[0_0_12px_rgba(93,211,158,0.6)]", text: "text-pass", word: "clear" },
   warn: { dot: "bg-signal shadow-[0_0_12px_rgba(242,179,61,0.6)]", text: "text-signal", word: "friction" },
   fail: { dot: "bg-fail shadow-[0_0_12px_rgba(240,102,94,0.6)]", text: "text-fail", word: "blocked" },
