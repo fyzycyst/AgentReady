@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DemoAuditPanel } from "@/components/demo/demo-audit-panel";
 import { WebMcpScripts } from "@/components/demo/webmcp-scripts";
+import { absoluteSiteUrl } from "@/lib/site-origin";
 import type { WebMcpControlProps, WebMcpFormProps } from "@/types/webmcp";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-const canonical = `${siteUrl.replace(/\/$/, "")}/demo`;
+const canonical = absoluteSiteUrl("/demo");
 
 export const metadata: Metadata = {
   title: "Le Petit Bistro — Table reservations in Lyon",
@@ -37,7 +37,7 @@ const jsonLd = {
   telephone: "+33-4-78-00-00-00",
   potentialAction: {
     "@type": "ReserveAction",
-    target: `${siteUrl.replace(/\/$/, "")}/api/demo/reserve`,
+    target: absoluteSiteUrl("/api/demo/reserve"),
   },
 };
 

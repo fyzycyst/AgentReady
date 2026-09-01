@@ -17,9 +17,20 @@ function useWindowOrigin(): string | null {
   );
 }
 
+function useIsLocalDevHost(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => {
+      const host = window.location.hostname;
+      return host === "localhost" || host === "127.0.0.1";
+    },
+    () => false,
+  );
+}
+
 export function SafeUrlChips() {
   const origin = useWindowOrigin();
-  const isLocal = origin?.includes("localhost") ?? false;
+  const isLocal = useIsLocalDevHost();
 
   return (
     <>
