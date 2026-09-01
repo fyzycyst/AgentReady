@@ -3,10 +3,7 @@
 import Script from "next/script";
 import { useEffect, useRef } from "react";
 import { registerAvailabilityTool } from "@/lib/demo/register-availability-tool";
-
-/** @mcp-b/webmcp-polyfill@5.1.0 — sha384 from: curl -s URL | openssl dgst -sha384 -binary | openssl base64 -A */
-const POLYFILL_URL = "https://unpkg.com/@mcp-b/webmcp-polyfill@5.1.0/dist/index.iife.js";
-const POLYFILL_INTEGRITY = "sha384-ZLqD1afbu2b2LJVDDqBf95wR/DGWh5FT1bx6E2S+4uMPdMOc8QGIIfw2gBWLKIB2";
+import { POLYFILL_INTEGRITY, POLYFILL_URL } from "@/lib/webmcp/polyfill";
 
 export function WebMcpScripts() {
   const controllerRef = useRef<AbortController | null>(null);

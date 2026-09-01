@@ -26,6 +26,37 @@ interface BlockedReport {
 }
 ```
 
+## HTTP: `GET /openapi.json`
+
+OpenAPI 3.1 description of `POST|GET /api/audit` and `GET /api/card`, served as
+`application/vnd.oai.openapi+json` and advertised from `/` as
+`<link rel="service-desc">`. `servers[0].url` is `discoverySiteOrigin()`.
+
+Hand-written in `src/app/openapi.json/route.ts`; it is the published contract for
+the two API routes, so a change to either route's request or response shape must
+be made there in the same PR.
+
+## WebMCP: `audit_site` on `/`
+
+`src/lib/webmcp/audit-site-tool.ts` owns one tool, exposed twice on the landing page:
+
+- **Declaratively** — `toolname` / `tooldescription` on the audit form, with
+  `toolparamdescription` on the `url` input. The form is a real
+  `GET /report?url=…`, so it works with JavaScript off.
+- **Imperatively** — `AUDIT_SITE_TOOL_SCRIPT`, emitted as an *inline* `<script>`
+  by `src/components/landing/webmcp-audit-tool.tsx`. Inline is required, not
+  incidental: our own `webmcp-capability` check reads served HTML, so a
+  registration hidden in a bundle is invisible to agents and auditors alike.
+
+`execute({ url })` calls `POST /api/audit` and resolves to a plain
+JSON-serializable value — `{ url, overall, grade, coverage, topFinding }`, or
+`{ error, url }` for a page that could not be audited. Never an MCP
+`{ content: [...] }` envelope. Unregistration is `AbortController.abort()` (on
+`pagehide`); the spec has no `unregisterTool`.
+
+The polyfill URL and its SRI hash live in `src/lib/webmcp/polyfill.ts` and are
+shared with `/demo`. **Bumping the version requires recomputing the hash.**
+
 ## Check-module contract — `src/lib/audit/contract.ts`
 
 `AuditCheck.run(ctx: AuditContext) → CheckResult | Promise<CheckResult>`

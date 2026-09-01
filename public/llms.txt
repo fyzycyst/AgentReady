@@ -10,8 +10,19 @@ AgentReady reads a single HTML page (plus same-origin discovery files) and retur
 - `/demo` — A-grade WebMCP control (Le Petit Bistro reservations demo)
 - `/fixtures/soup` — intentionally broken “beautiful but broken” fixture (not indexed)
 
+## API
+
+- `/openapi.json` — OpenAPI 3.1 description of everything below (also linked from `/` as `rel="service-desc"`)
+- `POST /api/audit` — body `{"url": "https://example.com/"}` → the full report: `score.overall` (0–100), `score.grade` (A–F), `score.coverage`, and per-category `results` with findings and paste-ready remediation snippets. `GET /api/audit?url=…` is equivalent.
+- `GET /api/card?url=…` — the same audit rendered as a 1200×630 PNG share card
+- `GET /report?url=…` — the human-readable report; this is also what the audit form on `/` submits to
+
+Rate limit: 12 requests per minute per client address. Nothing is stored. robots.txt is honoured before a page is fetched, so a disallowed URL returns `ok: false` with `code: "robots-disallow"` and no score.
+
 ## WebMCP
 
 This site demonstrates declarative (`toolname`, `tooldescription`, `toolparamdescription`) and imperative (`document.modelContext.registerTool`) WebMCP on `/demo`.
+
+`/` registers its own tool: **`audit_site`** — declared on the audit form and registered imperatively from an inline script, taking `{ "url": "…" }` and returning `{ url, overall, grade, coverage, topFinding }`.
 
 Spec: https://webmachinelearning.github.io/webmcp

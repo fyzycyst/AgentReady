@@ -2,7 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { AUDIT_SITE_TOOL } from "@/lib/webmcp/audit-site-tool";
+import type { WebMcpControlProps, WebMcpFormProps } from "@/types/webmcp";
 
+/**
+ * The audit form is three things at once, and they must not drift apart:
+ *   - a plain `GET /report?url=…` form, so it works with JavaScript off;
+ *   - a declarative WebMCP tool (`toolname`/`tooldescription`), so an agent can
+ *     call it without reverse-engineering the markup;
+ *   - a client-routed form, so a normal visitor gets a soft navigation.
+ *
+ * The tool name and description are shared with the imperative `audit_site`
+ * registration in `@/lib/webmcp/audit-site-tool` — one action, one name.
+ */
 export function UrlAuditForm({ initial = "", compact = false }: { initial?: string; compact?: boolean }) {
   const router = useRouter();
   const [value, setValue] = useState(initial);
@@ -24,7 +36,19 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
   }
 
   return (
-    <form onSubmit={submit} className="w-full" noValidate>
+    <form
+      action="/report"
+      method="get"
+      onSubmit={submit}
+      className="w-full"
+      // Scheme-less input ("yourcompany.com") is normalised server-side, so the
+      // browser must not reject it against type="url" before we get there.
+      noValidate
+      {...({
+        toolname: AUDIT_SITE_TOOL.name,
+        tooldescription: AUDIT_SITE_TOOL.description,
+      } satisfies WebMcpFormProps)}
+    >
       <div
         className={`flex items-stretch rounded-xl border border-line-strong bg-bg-elev shadow-[0_0_0_1px_rgba(242,179,61,0.0)] focus-within:shadow-[0_0_0_3px_rgba(242,179,61,0.18)] focus-within:border-signal transition-shadow ${
           compact ? "" : "text-lg"
@@ -37,11 +61,15 @@ export function UrlAuditForm({ initial = "", compact = false }: { initial?: stri
         <input
           id="url"
           name="url"
-          type="text"
+          type="url"
           inputMode="url"
           autoComplete="url"
           spellCheck={false}
+          required
           placeholder="yourcompany.com"
+          {...({
+            toolparamdescription: AUDIT_SITE_TOOL.inputSchema.properties.url.description,
+          } satisfies WebMcpControlProps)}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className={`flex-1 min-w-0 bg-transparent px-3 sm:px-2 font-mono text-text placeholder:text-faint outline-none ${compact ? "py-2.5 text-sm" : "py-4"}`}
