@@ -24,6 +24,7 @@ Settled by the Triumvirate (GPT Sol's blocking concern + Grok's sourced pitfalls
 - Positive credit requires validated evidence: MCP well-known files must be JSON objects with the spec's required fields; JSON-LD must have a schema.org `@context` and a non-empty `@type`. A catch-all 200 never earns points.
 - Every non-positive finding carries a `remediation` with a concrete `summary`; snippets use `document.modelContext` (never `navigator.modelContext`) for WebMCP.
 - A crashing check yields `score:null` and a note; it never sinks the report.
+- **Page content is hostile input inside checks too.** Never interpolate page-derived strings (`id`, `name`, `href`, text) into CSS selectors — selectors are constant strings; resolve references by iterating and comparing attributes. Any page-derived value placed in a remediation snippet is escaped (`& " < >`), whitespace-collapsed and length-capped. Scores are integers.
 
 ## Rendering
 
