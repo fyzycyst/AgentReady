@@ -45,10 +45,10 @@ describe("runAudit", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.score.overall).toBeGreaterThanOrEqual(80);
-    expect(r.results).toHaveLength(3);
+    expect(r.results).toHaveLength(4);
     expect(r.acquisition.renderedDom).toBe("skipped");
     expect(r.acquisition.sidecarsChecked).toBeGreaterThanOrEqual(4);
-    expect(r.score.coverage).toBeCloseTo(0.54, 2);
+    expect(r.score.coverage).toBeCloseTo(0.7, 2);
   });
 
   it("returns a blocked report without fetching the page when robots disallows us", async () => {
