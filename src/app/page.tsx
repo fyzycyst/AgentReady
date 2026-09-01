@@ -1,10 +1,66 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SafeUrlChips } from "@/components/landing/safe-url-chips";
 import { UrlAuditForm } from "@/components/landing/url-audit-form";
+import { WebMcpAuditTool } from "@/components/landing/webmcp-audit-tool";
+import { AUDIT_SITE_TOOL } from "@/lib/webmcp/audit-site-tool";
+import { absoluteSiteUrl } from "@/lib/site-origin";
+
+const canonical = absoluteSiteUrl("/");
+
+export const metadata: Metadata = {
+  alternates: { canonical },
+};
+
+/**
+ * Two entities, because an agent asks two questions here: what is this site
+ * (`WebSite`, with the audit form as its `potentialAction`) and what does the
+ * tool do (`WebApplication`). `potentialAction` points at the same `/report`
+ * URL the form GETs, so the JSON-LD, the form and the WebMCP tool all describe
+ * one action.
+ */
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "AgentReady",
+    url: canonical,
+    description:
+      "Audit any public URL for agent-readiness: WebMCP tools, structured data, discovery files, forms and actionability.",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${absoluteSiteUrl("/report")}?url={url}`,
+      },
+      "query-input": "required name=url",
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "AgentReady",
+    url: canonical,
+    applicationCategory: "DeveloperApplication",
+    browserRequirements: "Works in any browser; WebMCP tools require Chrome 149+ with the origin trial or flag.",
+    description:
+      "Scores a page 0–100 across agent discovery, machine-readable structure, access and renderability, form semantics, actionability and WebMCP capability, and generates the code that fixes what it finds.",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    potentialAction: {
+      "@type": "Action",
+      name: AUDIT_SITE_TOOL.name,
+      description: AUDIT_SITE_TOOL.description,
+      target: absoluteSiteUrl("/api/audit"),
+    },
+  },
+];
 
 export default function Home() {
   return (
     <div className="flex-1 flex flex-col">
+      <link rel="service-desc" type="application/vnd.oai.openapi+json" href="/openapi.json" />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <WebMcpAuditTool />
       <header className="mx-auto w-full max-w-5xl px-6 pt-8 flex items-center justify-between">
         <Link href="/" className="font-mono text-sm tracking-wide text-text">
           agent<span className="text-signal">ready</span>
@@ -31,7 +87,8 @@ export default function Home() {
           </p>
 
           <div className="mt-10 rise" style={{ animationDelay: "180ms" }}>
-            <UrlAuditForm />
+            {/* Only here: `/` is the page that owns the audit_site tool. */}
+            <UrlAuditForm declareTool />
             <div className="mt-4">
               <SafeUrlChips />
             </div>

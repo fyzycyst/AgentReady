@@ -4,6 +4,14 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { SAFE_URLS } from "@/lib/safe-urls";
 
+/**
+ * `/report` runs the audit on the server, so prefetching one of these links
+ * would fetch and score a third-party site before anybody clicked — spending
+ * the rate limiter's budget, and making outbound requests on an idle page.
+ * Every link to `/report` in this app opts out.
+ */
+const NO_PREFETCH = false;
+
 function auditHref(origin: string, url: string): string {
   const absolute = url.startsWith("/") ? `${origin}${url}` : url;
   return `/report?url=${encodeURIComponent(absolute)}`;
@@ -56,6 +64,7 @@ export function SafeUrlChips() {
             <Link
               key={entry.url}
               href={href}
+              prefetch={NO_PREFETCH}
               className="rounded-full border border-line px-3 py-1 text-muted hover:border-line-strong hover:text-text transition-colors"
             >
               {entry.label}

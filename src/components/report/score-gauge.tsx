@@ -1,29 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 /**
- * The signature element: a 240° instrument gauge. Needle sweeps from rest to
- * the score; number counts up in step. Respects prefers-reduced-motion.
+ * The signature element: a 240° instrument gauge, needle at the score.
+ *
+ * The number used to count up from zero in a `requestAnimationFrame` loop.
+ * That worked while the report arrived by client-side fetch — the gauge mounted
+ * before the score existed. Now that `/report` server-renders the audit, the
+ * score is in the served HTML, and a count-up could only produce one of two
+ * wrong things: a gauge reading `0` for a visitor without JavaScript, or a
+ * visible snap back to `0` on hydration for everyone else. The gauge shows the
+ * real number on first paint instead; arrival motion is the panel's `rise`.
  */
 export function ScoreGauge({ score, grade, coverage }: { score: number | null; grade: string | null; coverage: number }) {
-  const target = score ?? 0;
-  const [shown, setShown] = useState(0);
-
-  useEffect(() => {
-    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const start = performance.now();
-    const dur = reduce ? 1 : 1100;
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / dur);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setShown(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target]);
+  const shown = score ?? 0;
 
   const size = 220;
   const cx = size / 2;

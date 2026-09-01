@@ -14,6 +14,9 @@ export function DemoAuditPanel() {
       </p>
       <Link
         href="/report"
+        // `/report` audits on the server; prefetching it would run one from an
+        // idle page. The real destination is built in onClick anyway.
+        prefetch={false}
         className="mt-3 inline-flex text-sm text-signal hover:text-signal-dim transition-colors"
         onClick={(e) => {
           e.preventDefault();
