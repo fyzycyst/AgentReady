@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { publicSiteOrigin } from "@/lib/site-origin";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
   title: "AgentReady — Can an agent finish the job on your site?",
   description:
     "Audit any public URL for agent-readiness. Get a 0–100 score, see where AI agents get stuck, and copy the fix.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  ...(publicSiteOrigin() ? { metadataBase: new URL(publicSiteOrigin()!) } : {}),
   openGraph: {
     title: "AgentReady",
     description: "Your site works for humans. Can an agent finish the job?",

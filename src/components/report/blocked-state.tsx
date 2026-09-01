@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { SAFE_URLS } from "@/lib/safe-urls";
+import { SafeUrlChips } from "@/components/landing/safe-url-chips";
 import { PanelRail } from "./panel-rail";
 
 export function BlockedState({
@@ -32,13 +31,9 @@ export function BlockedState({
         {status ? ` · HTTP ${status}` : ""}
       </p>
       {evidence && <pre className="snippet mt-4 max-w-2xl whitespace-pre-wrap">{evidence}</pre>}
-      <div className="mt-8 flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-faint">Try one that works:</span>
-        {SAFE_URLS.map((u) => (
-          <Link key={u.url} href={`/report?url=${encodeURIComponent(u.url)}`} className="rounded-full border border-line px-3 py-1 text-muted hover:border-line-strong hover:text-text">
-            {u.label}
-          </Link>
-        ))}
+      <div className="mt-8">
+        <p className="text-sm text-faint mb-2">Try one that works:</p>
+        <SafeUrlChips />
       </div>
     </section>
   );

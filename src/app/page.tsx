@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { SafeUrlChips } from "@/components/landing/safe-url-chips";
 import { UrlAuditForm } from "@/components/landing/url-audit-form";
-import { SAFE_URLS } from "@/lib/safe-urls";
 
 export default function Home() {
   return (
@@ -32,17 +32,8 @@ export default function Home() {
 
           <div className="mt-10 rise" style={{ animationDelay: "180ms" }}>
             <UrlAuditForm />
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-faint">Try one:</span>
-              {SAFE_URLS.map((u) => (
-                <Link
-                  key={u.url}
-                  href={`/report?url=${encodeURIComponent(u.url)}`}
-                  className="rounded-full border border-line px-3 py-1 text-muted hover:border-line-strong hover:text-text transition-colors"
-                >
-                  {u.label}
-                </Link>
-              ))}
+            <div className="mt-4">
+              <SafeUrlChips />
             </div>
           </div>
         </section>

@@ -3,8 +3,13 @@
  * re-tested against the deployed fetcher before any demo — see
  * docs/RISK_REGISTER.md #1. Keep to sites that are known to serve raw HTML
  * to non-browser user agents without a challenge.
+ *
+ * Relative paths (`/demo`, `/fixtures/soup`) are resolved at click time against
+ * `window.location.origin` in SafeUrlChips.
  */
 export const SAFE_URLS: readonly { label: string; url: string }[] = [
+  { label: "Our demo (A)", url: "/demo" },
+  { label: "Beautiful but broken (D)", url: "/fixtures/soup" },
   { label: "example.com", url: "https://example.com/" },
   { label: "MDN", url: "https://developer.mozilla.org/en-US/" },
   { label: "Wikipedia", url: "https://en.wikipedia.org/wiki/Web_browser" },
