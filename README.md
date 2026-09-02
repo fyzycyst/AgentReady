@@ -27,6 +27,14 @@ One server-side fetch of the page (through a hardened `safe-fetch`), a handful o
 - `docs/INVARIANTS.md` — safe-fetch (SSRF) rules and scoring invariants
 - `docs/adr/` — decisions
 
+## Features
+
+- **Six checks**: agent discovery, machine-readable structure, access & renderability, form semantics, actionability, WebMCP capability — weights published, methodology at [/docs](https://agent-ready-cyan.vercel.app/docs).
+- **WebMCP stub generator**: every audited page gets a paste-ready tool built from its own first form — declarative `toolname` attributes plus `document.modelContext.registerTool` code with a correct JSON schema.
+- **WebMCP app, not just a WebMCP judge**: in ChatGPT's in-app browser (or Chrome with the WebMCP flag), the landing page exposes an `audit_site` tool an agent can call directly. [/demo](https://agent-ready-cyan.vercel.app/demo) shows a bookable reservation form declared as a tool; [/fixtures/soup](https://agent-ready-cyan.vercel.app/fixtures/soup) shows the beautiful-but-broken alternative.
+- **Honest scoring**: unobserved evidence never counts against a site; coverage and confidence are always shown; blocked fetches yield "no score", not a fake grade.
+- **Works without JavaScript**: `GET /report?url=` is fully server-rendered. Programmatic access via `POST /api/audit` ([OpenAPI](https://agent-ready-cyan.vercel.app/openapi.json)); share cards at `/api/card?url=`.
+
 ## Status
 
-Phase 1: discovery + structure checks, report UI. Phases 2–4 add access/forms/actionability, WebMCP detection + stub generator, `/demo`, share view, deploy.
+**v1 complete and deployed.** All four build phases shipped (348 tests, incl. an SSRF bypass corpus and a runtime test of generated tool code). AgentReady audits itself at **96/A** — the missing points are documented, not gamed. Submitted to the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/); built 2026-09-01/02 by a human-directed multi-agent AI team with adversarial cross-review on every merge (see `docs/adr/` and the git history).
