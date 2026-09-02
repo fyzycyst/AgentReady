@@ -52,6 +52,10 @@ export function SafeUrlChips() {
                 ? auditHref(origin, entry.url)
                 : `/report?url=${encodeURIComponent(entry.url)}`;
 
+          // The chip audits; the small ↗ visits the site itself — both one click.
+          // Relative first-party paths work as-is; external entries are absolute.
+          const visitHref = entry.url;
+
           if (!href) {
             return (
               <span key={entry.url} className="rounded-full border border-line px-3 py-1 text-muted">
@@ -61,14 +65,24 @@ export function SafeUrlChips() {
           }
 
           return (
-            <Link
+            <span
               key={entry.url}
-              href={href}
-              prefetch={NO_PREFETCH}
-              className="rounded-full border border-line px-3 py-1 text-muted hover:border-line-strong hover:text-text transition-colors"
+              className="inline-flex items-stretch overflow-hidden rounded-full border border-line text-muted hover:border-line-strong transition-colors"
             >
-              {entry.label}
-            </Link>
+              <Link href={href} prefetch={NO_PREFETCH} className="px-3 py-1 hover:text-text" title={`Audit ${entry.label}`}>
+                {entry.label}
+              </Link>
+              <a
+                href={visitHref}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Visit ${entry.label} in a new tab`}
+                title={`Visit ${entry.label}`}
+                className="border-l border-line px-2 py-1 text-faint hover:text-text hover:bg-surface-2"
+              >
+                ↗
+              </a>
+            </span>
           );
         })}
       </div>

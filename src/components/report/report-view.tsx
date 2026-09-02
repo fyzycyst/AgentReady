@@ -201,6 +201,16 @@ export function FullReport({ report }: { report: Extract<Report, { ok: true }> }
             <h1 className="display mt-1 text-3xl md:text-4xl font-semibold wrap-anywhere">{host}</h1>
             <p className="mt-1 font-mono text-xs text-faint wrap-anywhere">
               {report.finalUrl !== report.requestedUrl ? `${report.requestedUrl} → ${report.finalUrl}` : report.finalUrl}
+              {/* finalUrl came back from safe-fetch, so it is already a validated http(s) URL. */}
+              <a
+                href={report.finalUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Visit ${host} in a new tab`}
+                className="ml-2 rounded text-info hover:underline"
+              >
+                visit site ↗
+              </a>
             </p>
             {score.overall === null && (
               <p className="mt-4 max-w-xl text-sm text-muted">
