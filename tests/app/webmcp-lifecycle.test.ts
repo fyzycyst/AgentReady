@@ -49,6 +49,15 @@ describe("registerAvailabilityTool", () => {
     expect(mc.registerTool).toHaveBeenCalledTimes(2);
   });
 
+  it("is idempotent: the mount + polyfill-onLoad double-fire registers once (native duplicate-name regression)", async () => {
+    const { tools, mc } = installMockModelContext();
+    const ac = new AbortController();
+    await registerAvailabilityTool(ac.signal); // component mount, native API already present
+    await registerAvailabilityTool(ac.signal); // polyfill onLoad fires afterwards
+    expect(mc.registerTool).toHaveBeenCalledTimes(1);
+    expect(tools.has("check_availability")).toBe(true);
+  });
+
   it("skips registration when the signal is already aborted", async () => {
     const { mc } = installMockModelContext();
     const ac = new AbortController();

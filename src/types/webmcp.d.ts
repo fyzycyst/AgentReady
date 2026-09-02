@@ -12,6 +12,8 @@ declare global {
         },
         options?: { signal?: AbortSignal },
       ) => Promise<void>;
+      /** Spec: getTools(options?) — only the members we consume are typed. */
+      getTools?: (options?: { fromOrigins?: string[] }) => Promise<Array<{ name: string; description?: string }>>;
     };
   }
 }

@@ -1,9 +1,25 @@
-/** Imperative WebMCP tool for the /demo page; abort the registration signal to unregister. */
+/**
+ * Imperative WebMCP tool for the /demo page; abort the registration signal to
+ * unregister.
+ *
+ * Idempotent by design: the component calls this both at mount (native
+ * `document.modelContext` may already exist when the WebMCP flag is on) and
+ * from the polyfill's onLoad — under native both paths fire, and a second
+ * registerTool throws InvalidStateError "Duplicate tool name". Skip when the
+ * tool is already listed, and treat a duplicate-name race as success.
+ */
 export async function registerAvailabilityTool(signal: AbortSignal): Promise<void> {
   if (signal.aborted) return;
 
   const mc = document.modelContext;
   if (!mc?.registerTool) return;
+
+  try {
+    const tools = (await mc.getTools?.()) ?? [];
+    if (tools.some((t) => t.name === "check_availability")) return;
+  } catch {
+    // getTools unavailable or failed — fall through and let registerTool decide.
+  }
 
   await mc.registerTool(
     {
