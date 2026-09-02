@@ -72,7 +72,7 @@ describe("sitemap.xml entries", () => {
     process.env.NEXT_PUBLIC_SITE_URL = "https://agentready.example";
     delete process.env.VERCEL_URL;
     const entries = sitemap();
-    expect(entries.map((entry) => entry.url)).toEqual(["https://agentready.example/", "https://agentready.example/demo"]);
+    expect(entries.map((entry) => entry.url)).toEqual(["https://agentready.example/", "https://agentready.example/docs", "https://agentready.example/demo"]);
     for (const entry of entries) assertAbsolute(entry.url);
   });
 
@@ -82,6 +82,7 @@ describe("sitemap.xml entries", () => {
     const entries = sitemap();
     expect(entries.map((entry) => entry.url)).toEqual([
       "https://agentready-preview.vercel.app/",
+      "https://agentready-preview.vercel.app/docs",
       "https://agentready-preview.vercel.app/demo",
     ]);
   });
@@ -90,6 +91,6 @@ describe("sitemap.xml entries", () => {
     delete process.env.NEXT_PUBLIC_SITE_URL;
     delete process.env.VERCEL_URL;
     const entries = sitemap();
-    expect(entries.map((entry) => entry.url)).toEqual([`${DEV_SITE_ORIGIN}/`, `${DEV_SITE_ORIGIN}/demo`]);
+    expect(entries.map((entry) => entry.url)).toEqual([`${DEV_SITE_ORIGIN}/`, `${DEV_SITE_ORIGIN}/docs`, `${DEV_SITE_ORIGIN}/demo`]);
   });
 });

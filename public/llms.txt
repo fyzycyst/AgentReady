@@ -7,6 +7,7 @@ AgentReady reads a single HTML page (plus same-origin discovery files) and retur
 ## Key URLs
 
 - `/` — paste a URL and run an audit
+- `/docs` — how the six checks and the scoring work, the honesty rules, and the API, in one page
 - `/demo` — live WebMCP demo page: a restaurant booking form with declarative and imperative tools (Le Petit Bistro)
 - `/fixtures/soup` — deliberately broken showcase: a page that looks fine to a person and blocks an agent
 

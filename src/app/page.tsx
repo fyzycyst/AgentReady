@@ -67,6 +67,7 @@ export default function Home() {
         </Link>
         <nav className="flex gap-6 text-sm text-muted">
           <a href="#how" className="hover:text-text">How it scores</a>
+          <Link href="/docs" className="hover:text-text rounded">Docs</Link>
           <a href="https://github.com/fyzycyst/AgentReady" className="hover:text-text" rel="noreferrer">
             Source
           </a>
