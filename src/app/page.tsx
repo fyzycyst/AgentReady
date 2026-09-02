@@ -126,6 +126,9 @@ export default function Home() {
       <footer className="mx-auto w-full max-w-5xl px-6 py-8 text-xs text-faint flex flex-wrap gap-x-6 gap-y-2">
         <span>Reads one page, respects robots.txt, stores nothing.</span>
         <span>WebMCP is a W3C community draft; Chrome origin trial 149–156.</span>
+        <a href="https://buymeacoffee.com/themodeleer" rel="noreferrer" className="hover:text-muted rounded">
+          Support this project ☕
+        </a>
       </footer>
     </div>
   );

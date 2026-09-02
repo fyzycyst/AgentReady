@@ -1,6 +1,11 @@
 # AgentReady
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-☕-FFDD00.svg)](https://buymeacoffee.com/themodeleer)
+
 **Your site works for humans. Can an agent finish the job?**
+
+Live: **https://agent-ready-cyan.vercel.app** · [Docs](https://agent-ready-cyan.vercel.app/docs) · [Demo](https://agent-ready-cyan.vercel.app/demo)
 
 Paste any public URL and get an agent-readiness report: a 0–100 score, where AI agents get stuck (Find → Understand → Act), and copy-paste fixes — including WebMCP tool stubs.
 
