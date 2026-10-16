@@ -5,7 +5,7 @@
 
 **Your site works for humans. Can an agent finish the job?**
 
-Live: **https://agent-ready-cyan.vercel.app** · [Docs](https://agent-ready-cyan.vercel.app/docs) · [Demo](https://agent-ready-cyan.vercel.app/demo)
+Live: **https://agentready.ftlenterprises.us** · [Docs](https://agentready.ftlenterprises.us/docs) · [Demo](https://agentready.ftlenterprises.us/demo)
 
 Paste any public URL and get an agent-readiness report: a 0–100 score, where AI agents get stuck (Find → Understand → Act), and copy-paste fixes — including WebMCP tool stubs.
 
@@ -29,11 +29,11 @@ One server-side fetch of the page (through a hardened `safe-fetch`), a handful o
 
 ## Features
 
-- **Six checks**: agent discovery, machine-readable structure, access & renderability, form semantics, actionability, WebMCP capability — weights published, methodology at [/docs](https://agent-ready-cyan.vercel.app/docs).
+- **Six checks**: agent discovery, machine-readable structure, access & renderability, form semantics, actionability, WebMCP capability — weights published, methodology at [/docs](https://agentready.ftlenterprises.us/docs).
 - **WebMCP stub generator**: every audited page gets a paste-ready tool built from its own first form — declarative `toolname` attributes plus `document.modelContext.registerTool` code with a correct JSON schema.
-- **WebMCP app, not just a WebMCP judge**: in ChatGPT's in-app browser (or Chrome with the WebMCP flag), the landing page exposes an `audit_site` tool an agent can call directly. [/demo](https://agent-ready-cyan.vercel.app/demo) shows a bookable reservation form declared as a tool; [/fixtures/soup](https://agent-ready-cyan.vercel.app/fixtures/soup) shows the beautiful-but-broken alternative.
+- **WebMCP app, not just a WebMCP judge**: in ChatGPT's in-app browser (or Chrome with the WebMCP flag), the landing page exposes an `audit_site` tool an agent can call directly. [/demo](https://agentready.ftlenterprises.us/demo) shows a bookable reservation form declared as a tool; [/fixtures/soup](https://agentready.ftlenterprises.us/fixtures/soup) shows the beautiful-but-broken alternative.
 - **Honest scoring**: unobserved evidence never counts against a site; coverage and confidence are always shown; blocked fetches yield "no score", not a fake grade.
-- **Works without JavaScript**: `GET /report?url=` is fully server-rendered. Programmatic access via `POST /api/audit` ([OpenAPI](https://agent-ready-cyan.vercel.app/openapi.json)); share cards at `/api/card?url=`.
+- **Works without JavaScript**: `GET /report?url=` is fully server-rendered. Programmatic access via `POST /api/audit` ([OpenAPI](https://agentready.ftlenterprises.us/openapi.json)); share cards at `/api/card?url=`.
 
 ## Status
 
