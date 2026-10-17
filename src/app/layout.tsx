@@ -22,6 +22,8 @@ export const metadata: Metadata = {
     description: "Your site works for humans. Can an agent finish the job?",
     type: "website",
   },
+  // The image itself comes from app/opengraph-image.tsx; X falls back to og:image.
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
