@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { absoluteSiteUrl } from "@/lib/site-origin";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Docs — AgentReady",
   description:
     "How AgentReady scores agent-readiness: the six checks, the honesty rules, the HTTP API, and the WebMCP tools this site exposes.",
+  alternates: { canonical: absoluteSiteUrl("/docs") },
 };
 
 /**
