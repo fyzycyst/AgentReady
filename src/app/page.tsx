@@ -129,6 +129,9 @@ export default function Home() {
         <a href="https://buymeacoffee.com/themodeleer" rel="noreferrer" className="hover:text-muted rounded">
           Support this project ☕
         </a>
+        <a href="https://ftlenterprises.us/privacy#agentready" className="hover:text-muted rounded">
+          Privacy
+        </a>
       </footer>
     </div>
   );

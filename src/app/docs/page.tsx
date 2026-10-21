@@ -108,8 +108,11 @@ GET  /api/card?url=<url> 1200×630 PNG share card`}</pre>
         </section>
       </main>
 
-      <footer className="mx-auto w-full max-w-3xl px-6 py-8 text-xs text-faint">
+      <footer className="mx-auto w-full max-w-3xl px-6 py-8 text-xs text-faint flex flex-wrap gap-x-6 gap-y-2">
         <Link href="/" className="hover:text-muted rounded">← Back to the auditor</Link>
+        <a href="https://ftlenterprises.us/privacy#agentready" className="hover:text-muted rounded">
+          Privacy
+        </a>
       </footer>
     </div>
   );
